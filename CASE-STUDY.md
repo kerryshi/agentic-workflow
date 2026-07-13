@@ -41,8 +41,8 @@ genuine feature on a real project: add a price-lookup intent to a restaurant pho
 
 And it was worth it.
 
-The project's own suite was **92 tests, green**. The independent review stage caught two defects it
-did not:
+The building agent wrote the feature *and* 23 new tests for it. The suite was green — 115 passing.
+The independent review stage caught two defects those tests did not:
 
 **Bug 1 — a price question silently mutated a live order.**
 `RuleBackend.parse` chained `*self._parse_items(text)` after an `item_price` match. So a customer

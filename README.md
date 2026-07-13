@@ -17,8 +17,8 @@ reproducible from the records in this repo.
 ## The case for it, in one run
 
 Run [`2026-07-12_1617`](runs/2026-07-12_1617_add-a-price-faq-intent-to-the-china-garden-call/) added
-a price-lookup feature to a phone-order agent for a restaurant. The project's own test suite — 92
-tests — was green.
+a price-lookup feature to a phone-order agent for a restaurant. The building agent wrote the feature
+*and* its tests, and the suite was green.
 
 The harness's independent review stage caught two bugs the suite did not:
 
