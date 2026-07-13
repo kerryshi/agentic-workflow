@@ -1,0 +1,39 @@
+{
+  "run_id": "2026-07-12_1811_add-a-handoff-briefing-to-the-china-garden-call",
+  "created_at": "2026-07-12T18:11:19-04:00",
+  "completed_at": "2026-07-12T18:16:36-04:00",
+  "machine": "mac",
+  "repo": "/Users/kerryshi/Projects/china-garden",
+  "repo_name": "china-garden",
+  "branch": "price-faq-intent",
+  "worktree": null,
+  "objective": "Add a handoff briefing to the china-garden call agent. When the dialog hands off to a human (caller says 'person', ingredient/allergen questions, etc.) and the session has an order in progress, the HANDOFF reply currently carries no order context - the human picking up is blind. Brief them: expose a compact order-so-far summary (items, qty, size, notes) at handoff time, designed so the future telephony layer can surface it to the human (e.g. a structured field on the reply or session, plus a natural caller-facing line confirming the order is saved). Do not change non-handoff flows; never leak internal notation to the caller. Validation: .venv/bin/pytest stays green (115 baseline) and .venv/bin/ruff check . clean; add regression tests that fail before the change.",
+  "user_prompt_summary": "",
+  "status_path": "",
+  "risk_level": "low",
+  "agent": {
+    "agent_id": "claude-code",
+    "agent_role": "executor",
+    "surface": "harness",
+    "model": "sonnet",
+    "adapter_version": "v2-harness"
+  },
+  "status": "complete",
+  "validation_plan": [
+    ".venv/bin/pytest -q",
+    ".venv/bin/ruff check .",
+    "printf 'two egg rolls\\nis there peanut oil in that\\n' | .venv/bin/python -m china_garden.cli",
+    "printf 'is there peanut oil in the lo mein\\n' | .venv/bin/python -m china_garden.cli"
+  ],
+  "files_changed": [
+    "src/china_garden/order.py",
+    "src/china_garden/dialog.py",
+    "tests/test_handoff_briefing.py"
+  ],
+  "linked_failures": [],
+  "evidence_links": [
+    "evidence.md"
+  ],
+  "reviewer_result": "review stage: see review.md",
+  "final_outcome": "pipeline feature completed (6 stages)"
+}

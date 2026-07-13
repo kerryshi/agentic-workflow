@@ -1,0 +1,172 @@
+{
+  "run_id": "2026-07-12_1617_add-a-price-faq-intent-to-the-china-garden-call",
+  "template": "feature",
+  "repo": "/Users/kerryshi/Projects/china-garden",
+  "task": "Add a price-FAQ intent to the china-garden call agent. Callers asking the price of a menu item ('how much is General Tso's Chicken', 'what does the egg roll cost') currently get the generic fallback; they should get the item's price from data/menu.json. Follow the existing RuleBackend intent-pattern conventions in src/china_garden; handle unknown/ambiguous items gracefully (fallback or clarify, never invent a price); do not change the order/read-back flow. Validation: .venv/bin/pytest must stay green (92 baseline) and .venv/bin/ruff check . clean; add regression tests that fail before the fix and pass after.",
+  "answers": "# Grill questions\n\nAnswer inline under each question, then resume the run.\n\n1. For a multi-size item (wonton soup, hot & sour soup, chicken fried rice, chicken lo mein, white rice) asked about without a size, should the reply state both prices (e.g. 'pint $3.50, quart $5.95'), or ask which size before quoting a price?\n   A: State both prices in one reply (e.g. 'Wonton soup is $3.50 for a pint, $5.95 for a quart'). On a phone call, quoting both is faster than a clarifying turn, and it never invents a single price for a multi-size item.\n\n2. Should one utterance be able to price multiple items at once (e.g. 'how much are the egg rolls and crab rangoon'), or is single-item-per-question sufficient for this slice?\n   A: Single-item-per-question is sufficient for this slice. If an utterance names multiple items, answering the first recognized item or using the existing fallback is acceptable; multi-item pricing is explicitly out of scope (keep the diff small).\n",
+  "builder": "claude",
+  "reviewer": "claude",
+  "model": "sonnet",
+  "skip_permissions": true,
+  "current_stage": 8,
+  "validation_commands": [
+    ".venv/bin/pytest",
+    ".venv/bin/ruff check .",
+    "printf 'how much is the general tso\\nwhat does the wonton soup cost\\nhow much is the pepperoni pizza\\nquit\\n' | .venv/bin/python -m china_garden.cli"
+  ],
+  "files_changed": [
+    "src/china_garden/backends.py",
+    "src/china_garden/menu.py",
+    "src/china_garden/dialog.py",
+    "tests/test_price_faq.py"
+  ],
+  "fix_cycles": 1,
+  "last_must_fix": "- src/china_garden/backends.py: The `[price, *self._parse_items(text)]` hookup at line 132-134 silently adds a menu item to the live order when a price question names two items joined by 'and' or a comma (e.g. 'how much are the egg rolls and crab rangoon' — clarification #1's own example phrase). Confirmed live: this yields `[item_price(Egg Roll), add_item(Crab Rangoon (6))]`, and `DialogSession.handle` both answers the price AND adds Crab Rangoon to `session.order.lines` without the caller ever asking to order it. Also reproduces with commas and can self-referentially re-add the very item just priced. Clarification #2 only sanctioned 'answering the first recognized item' or 'the existing fallback' for multi-item utterances — silently mutating the order is neither, and it's worse than a no-op since it's hidden behind what reads as a normal price answer.",
+  "stages": [
+    {
+      "name": "grill",
+      "status": "done",
+      "artifacts": [
+        "questions.md"
+      ],
+      "agent": "claude",
+      "model": "sonnet",
+      "started_at": "2026-07-12T16:17:23-04:00",
+      "tokens": {
+        "input": 16,
+        "output": 7292,
+        "cache_read": 363977,
+        "cache_creation": 38240
+      },
+      "cost_usd": 0.4491080999999999,
+      "duration_ms": 92064,
+      "num_turns": 14,
+      "ended_at": "2026-07-12T16:19:29-04:00"
+    },
+    {
+      "name": "plan",
+      "status": "done",
+      "artifacts": [
+        "plan.md"
+      ],
+      "agent": "claude",
+      "model": "sonnet",
+      "started_at": "2026-07-12T16:19:29-04:00",
+      "tokens": {
+        "input": 24,
+        "output": 27209,
+        "cache_read": 717735,
+        "cache_creation": 58862
+      },
+      "cost_usd": 0.9780085,
+      "duration_ms": 290024,
+      "num_turns": 24,
+      "ended_at": "2026-07-12T16:24:19-04:00"
+    },
+    {
+      "name": "approval",
+      "status": "done",
+      "artifacts": [],
+      "ended_at": "2026-07-12T16:24:49-04:00"
+    },
+    {
+      "name": "build",
+      "status": "done",
+      "artifacts": [],
+      "agent": "claude",
+      "model": "sonnet",
+      "started_at": "2026-07-12T16:24:49-04:00",
+      "tokens": {
+        "input": 56,
+        "output": 20523,
+        "cache_read": 1955788,
+        "cache_creation": 60121
+      },
+      "cost_usd": 1.2586844,
+      "duration_ms": 222283,
+      "num_turns": 36,
+      "ended_at": "2026-07-12T16:28:32-04:00"
+    },
+    {
+      "name": "review",
+      "status": "done",
+      "artifacts": [
+        "review.md"
+      ],
+      "agent": "claude",
+      "model": "sonnet",
+      "started_at": "2026-07-12T16:28:32-04:00",
+      "tokens": {
+        "input": 34,
+        "output": 25094,
+        "cache_read": 1031662,
+        "cache_creation": 61837
+      },
+      "cost_usd": 1.0602936,
+      "duration_ms": 281377,
+      "num_turns": 25,
+      "ended_at": "2026-07-12T16:33:14-04:00"
+    },
+    {
+      "name": "build",
+      "variant": "fix",
+      "status": "done",
+      "artifacts": [],
+      "agent": "claude",
+      "model": "sonnet",
+      "started_at": "2026-07-12T16:33:14-04:00",
+      "tokens": {
+        "input": 52,
+        "output": 21077,
+        "cache_read": 1652968,
+        "cache_creation": 50390
+      },
+      "cost_usd": 1.1180254,
+      "duration_ms": 250212,
+      "num_turns": 31,
+      "ended_at": "2026-07-12T16:37:25-04:00"
+    },
+    {
+      "name": "review",
+      "status": "done",
+      "artifacts": [
+        "review.md",
+        "review.md",
+        "review.md"
+      ],
+      "agent": "claude",
+      "model": "sonnet",
+      "started_at": "2026-07-12T16:53:20-04:00",
+      "tokens": {
+        "input": 54,
+        "output": 23166,
+        "cache_read": 1764004,
+        "cache_creation": 47351
+      },
+      "cost_usd": 1.1642451999999999,
+      "duration_ms": 283520,
+      "num_turns": 27,
+      "ended_at": "2026-07-12T16:58:04-04:00"
+    },
+    {
+      "name": "verify",
+      "status": "done",
+      "artifacts": [
+        "evidence.md"
+      ],
+      "agent": "claude",
+      "model": "sonnet",
+      "started_at": "2026-07-12T16:58:04-04:00",
+      "tokens": {
+        "input": 6,
+        "output": 1712,
+        "cache_read": 104005,
+        "cache_creation": 9772
+      },
+      "cost_usd": 0.1169305,
+      "duration_ms": 20253,
+      "num_turns": 5,
+      "ended_at": "2026-07-12T16:58:25-04:00"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+    "case_id":  "CASE-0004",
+    "created_at":  "2026-07-09T21:12:31-04:00",
+    "resolved_at":  "2026-07-09T22:53:16-04:00",
+    "machine":  "windows",
+    "linked_run":  "2026-07-09_1953_independent-review-of-the-v1",
+    "repo":  "C:/Users/PC/agentic-workflow",
+    "repo_name":  "agentic-workflow",
+    "commit_or_branch":  "master",
+    "summary":  "update_run parallel evidence links lost to read-modify-write race",
+    "failure_class":  "tool_error",
+    "severity":  "must_fix",
+    "repro_command":  "12 parallel update_run.ps1 -EvidenceLink link-N against one run; only 8-9 of 12 survive, all exit 0",
+    "status":  "fixed",
+    "prevention_layer":  "cross-process mutex plus atomic JSON writes",
+    "regression_test":  "tests/run_tests.ps1::R17"
+}

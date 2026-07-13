@@ -1,0 +1,17 @@
+{
+    "case_id":  "CASE-0010",
+    "created_at":  "2026-07-10T10:53:43-04:00",
+    "resolved_at":  "2026-07-10T10:55:15-04:00",
+    "machine":  "windows",
+    "linked_run":  "2026-07-10_1036_fold-the-codex-built-zed-acp-adapter",
+    "repo":  "C:/Users/PC/zed-acp-agents",
+    "repo_name":  "zed-acp-agents",
+    "commit_or_branch":  "6d2bc79",
+    "summary":  "Cancellation not honored if signal already aborted before executor spawn",
+    "failure_class":  "tool_error",
+    "severity":  "should_fix",
+    "repro_command":  "runner.run with pre-aborted AbortSignal spawns the executor instead of returning cancelled (window: session/cancel between permission grant and executor start)",
+    "status":  "fixed",
+    "prevention_layer":  "pre-spawn signal.aborted guard in ClaudeRunner + post-core.start re-check in agent codeTurn",
+    "regression_test":  "zed-acp-agents test/runner-cancel.test.js (2 tests; fail without guard, pass with it)"
+}

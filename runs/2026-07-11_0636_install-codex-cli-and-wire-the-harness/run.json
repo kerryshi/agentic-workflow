@@ -1,0 +1,60 @@
+{
+    "run_id":  "2026-07-11_0636_install-codex-cli-and-wire-the-harness",
+    "created_at":  "2026-07-11T06:36:49-04:00",
+    "completed_at":  "2026-07-11T07:18:20-04:00",
+    "machine":  "windows",
+    "repo":  "C:/Users/PC/agentic-workflow",
+    "repo_name":  "agentic-workflow",
+    "branch":  "master",
+    "worktree":  null,
+    "objective":  "Install Codex CLI and wire the harness codex driver (live, conformance-tested)",
+    "user_prompt_summary":  "",
+    "status_path":  "",
+    "risk_level":  "medium",
+    "agent":  {
+                  "agent_id":  "claude-code",
+                  "agent_role":  "executor",
+                  "surface":  "claude-code",
+                  "model":  "claude-fable-5",
+                  "adapter_version":  "v1"
+              },
+    "status":  "shipped",
+    "validation_plan":  [
+                            "harness vitest green",
+                            "tsc clean",
+                            "live codex exec conformance spike passes",
+                            "v1 PS harness 64/64",
+                            "independent review"
+                        ],
+    "files_changed":  [
+                          "adapters/codex.md",
+                          "docs/orchestration.md",
+                          "failures/CASE-0016_runprocess-sync-spawn-throw-einval-on/",
+                          "failures/CASE-0017_runprocess-timeout-could-strand-a-stage/",
+                          "HANDOFF.md",
+                          "harness/src/adapters/claude.ts",
+                          "harness/src/adapters/codex.ts",
+                          "harness/src/adapters/proc.ts",
+                          "harness/src/engine.ts",
+                          "harness/tests/codex-driver.test.ts",
+                          "harness/tests/engine.test.ts",
+                          "harness/tests/proc.test.ts",
+                          "metrics/runs.jsonl",
+                          "PORTFOLIO.md",
+                          "runs/2026-07-11_0636_install-codex-cli-and-wire-the-harness/"
+                      ],
+    "linked_failures":  [
+                            "CASE-0016",
+                            "CASE-0017"
+                        ],
+    "evidence_links":  [
+                           "spike/codex-exec-json-happy.jsonl",
+                           "spike/codex-exec-json-bad-model.jsonl",
+                           "harness/tests/codex-driver.test.ts",
+                           "failures/CASE-0016_runprocess-sync-spawn-throw-einval-on/failure.json",
+                           "failures/CASE-0017_runprocess-timeout-could-strand-a-stage/failure.json",
+                           "harness/tests/proc.test.ts"
+                       ],
+    "reviewer_result":  "Independent 3-lens adversarial review workflow (16 agents): 13 findings raised, 13 confirmed by verifiers, all fixed same-session (1 must-fix, 7 should-fix, rest nits/informational). Post-fix vitest 68/68, live conformance re-passed.",
+    "final_outcome":  "Codex CLI installed (codex-cli 0.144.1, Codex Desktop auth reused) and the harness codex driver rewritten from stub to live: codex exec --json over stdin, JSONL event fold, honest failure mapping. Engine cross-agent model leak fixed. 3-lens adversarial review: 13/13 findings addressed, CASE-0016/0017 captured+resolved."
+}

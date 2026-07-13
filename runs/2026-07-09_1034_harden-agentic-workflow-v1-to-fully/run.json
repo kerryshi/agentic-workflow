@@ -1,0 +1,45 @@
+{
+    "run_id":  "2026-07-09_1034_harden-agentic-workflow-v1-to-fully",
+    "created_at":  "2026-07-09T10:34:09-04:00",
+    "completed_at":  "2026-07-09T10:55:20-04:00",
+    "machine":  "windows",
+    "repo":  "C:/Users/PC/agentic-workflow",
+    "repo_name":  "agentic-workflow",
+    "branch":  "master",
+    "worktree":  null,
+    "objective":  "Harden Agentic Workflow v1 to fully-working per PRD",
+    "user_prompt_summary":  "",
+    "status_path":  "",
+    "risk_level":  "medium",
+    "status":  "shipped",
+    "validation_plan":  [
+                            "tests/run_tests.ps1 green x10",
+                            "independent reviewer clean",
+                            "metrics regenerated"
+                        ],
+    "files_changed":  [
+                          "failures/CASE-0001_complete-run-capturediff-drops-non/",
+                          "failures/CASE-0002_capture-failure-crashes-on-the-second/",
+                          "failures/CASE-0003_complete-run-blind-overwrote-hand/",
+                          "HANDOFF.md",
+                          "metrics/runs.jsonl",
+                          "metrics/summary.json",
+                          "metrics/summary.md",
+                          "PORTFOLIO.md",
+                          "PRD.md",
+                          "runs/2026-07-08_2113_review-v3-prd-and-mvp-fix-defects-flush-out-to-v/run.json",
+                          "runs/2026-07-09_1034_harden-agentic-workflow-v1-to-fully/",
+                          "scripts/complete_run.ps1",
+                          "tests/run_tests.ps1"
+                      ],
+    "linked_failures":  [
+                            "CASE-0001"
+                        ],
+    "evidence_links":  [
+                           "runs/2026-07-09_1034_harden-agentic-workflow-v1-to-fully/evidence.md",
+                           "failures/CASE-0001_complete-run-capturediff-drops-non/regression.md",
+                           "metrics/summary.md"
+                       ],
+    "reviewer_result":  "reviewer subagent: no MUST-FIX/SHOULD-FIX; 1 NIT applied (gate add -N on the throwaway index).",
+    "final_outcome":  "Hardened v1 to fully-working: fixed the R14 diff-capture bug (32/32 harness deterministically green, 10/10 runs), seeded+resolved 3 failure cases, wired /review. Independent reviewer clean."
+}

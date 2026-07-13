@@ -1,0 +1,2450 @@
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,19 @@
++# Local/private material
++.env
++.env.*
++*.local
++*.local.*
++*.secret
++*.secret.*
++
++# Raw transcripts and unsanitized logs
++raw/
++runs/*/raw/
++failures/*/raw/
++*.log
++
++# OS/editor noise
++.DS_Store
++Thumbs.db
++.vscode/
++
+
+diff --git a/PRD.md b/PRD.md
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/PRD.md
+@@ -0,0 +1,835 @@
++# Agentic Workflow v3 PRD
++
++Date: 2026-07-08
++Owner: Kerry Shi
++Status: Draft for critique
++
++## 1. Hard Critique of the Proposed Zed/ACP Spec
++
++### 1.1 The core idea is good, but the proposed center of gravity is wrong
++
++The spec is strongest when it says the product is not "many agents," but a controlled, observable,
++testable coding-agent reliability system. That is exactly the right direction.
++
++The weak part is making Zed/ACP the headline. In this system, the active center is already Claude Code
++configuration: global instructions, skills, subagents, hooks, worktrees, sync, and project handoffs.
++Making Zed/ACP the new foundation would force a platform rebuild before the reliability loop exists.
++
++Verdict: ACP should be an optional cockpit later. It should not be the MVP.
++
++### 1.2 The MVP in the spec is still too large
++
++The spec says "MVP," but includes:
++
++- ACP gateway
++- custom harness
++- planner
++- executor
++- verifier
++- local code index
++- permission gate
++- trace logger
++- failure-to-eval loop
++- agentic AI engineer
++- future model routing
++- future fleet
++
++That is not an MVP. It is a multi-quarter platform.
++
++For Kerry's actual system, the MVP should be narrower:
++
++- structured run records
++- structured ship/evidence reports
++- replayable failure cases
++- failure classification
++- regression/eval tracking
++- lightweight metrics
++
++Everything else is secondary.
++
++### 1.3 It duplicates capabilities that Claude Code already gives you
++
++The proposed harness wants to own:
++
++- file reads
++- shell commands
++- edits
++- tests
++- diffs
++- planning
++- review
++- tool permissions
++- context retrieval
++
++But the current system already has most of this through Claude Code plus custom skills:
++
++- `/plan`
++- `/review`
++- `/ship`
++- `/worktree`
++- `/gnhf`
++- `reviewer` subagent
++- `explore` subagent
++- report-only validation hook
++- project `STATUS.md` and central `HANDOFF.md`
++
++Building a full replacement harness now would regress the workflow by turning a working system into
++a partially rebuilt one.
++
++Better move: wrap the existing workflow with durable records and evals.
++
++### 1.4 The spec underestimates operational friction on Windows + WSL2 + Mac
++
++The system is not a generic Linux dev box. It has real platform constraints:
++
++- Windows desktop is the canonical machine.
++- WSL2 is the ML lab, not the main AgentOS runtime anymore.
++- Mac is a thin client / second workspace over Tailscale.
++- PowerShell 5.1 mangles quote-bearing multiline strings passed to native exes.
++- Windows script execution policy can block PowerShell entrypoints unless bypassed deliberately.
++- Git safety checks can fail under alternate users unless safe directories are handled.
++- The validation hook has already had a repo-config RCE class issue; any automation that inspects repos
++  must respect the trusted-repo allowlist.
++- Mac does not run the same PowerShell Stop hook.
++
++The proposed spec ignores too many of these details. A revamp that does not encode these constraints
++will look good on paper and fail in daily use.
++
++### 1.5 The local model routing section conflicts with the active decision
++
++The current workflow intentionally dropped local models from the coding loop. Claude does planning,
++coding, debugging, and review. Ollama/WSL2 can still be useful, but not as the agent core.
++
++Acceptable local use:
++
++- summarize long logs
++- classify failure types
++- draft labels/tags
++- embeddings/search experiments
++- batch metrics summaries
++
++Not acceptable for v3 MVP:
++
++- routing code-generation tasks to local models
++- using local models as the main planner/reviewer
++- rebuilding Claude Code around Ollama
++
++The portfolio story is stronger if the system is a reliability layer around a serious coding agent,
++not a half-built local-agent platform.
++
++### 1.6 The local code index is premature
++
++A persistent symbol/call graph sounds impressive, but it is not the current bottleneck.
++
++The current bottleneck is that failures do not automatically become durable evals. The workflow can
++already find code using `rg`, `/explore`, repo docs, and normal tool use. A code index becomes valuable
++after there are enough repeated failures caused by bad context.
++
++Do not build the index first.
++
++### 1.7 The failure-to-eval loop is the real gold
++
++This is the strongest part of the spec. It should become the first major v3 feature.
++
++The current workflow has:
++
++- strong review discipline
++- regression-test expectations
++- evidence requirements
++- handoff docs
++- session history
++
++But it lacks:
++
++- a standard failure case folder
++- a reproducible command for each failure
++- a failure taxonomy applied consistently
++- a report tying a failure to the rule/skill/test that prevents recurrence
++- metrics showing reliability improving over time
++
++This is the gap that would make the system portfolio-defensible.
++
++### 1.8 The permission model needs to be real, but not annoying
++
++The current system has full-auto permissions enabled, with human judgment expected for risky actions.
++That is productive, but weak as a reliability-platform claim.
++
++Do not switch to constant permission prompts. That creates fatigue.
++
++Instead, define a coding-task policy:
++
++- Auto: read/search, local edits, local tests, local lint/typecheck, local commits when requested.
++- Approval: deleting files, migrations, package installs, touching secrets, changing prod config,
++  pushing, deploying, sending messages, writing to Mac, writing outside the active repo.
++- Blocked: mass outreach, financial actions, secret exfiltration, destructive filesystem operations
++  outside explicit task scope.
++
++The policy should live in the workflow docs and be referenced by skills. It does not need a giant
++custom tool gateway on day one.
++
++### 1.9 The fleet idea is a distraction
++
++The actual "fleet" is already:
++
++- Windows desktop: canonical execution and heavy work.
++- WSL2: ML/CUDA lab.
++- Mac: portable client / second workspace.
++
++Do not build a distributed task runner. Finish tmux/persistent sessions and sync discipline first.
++
++### 1.10 The right revamp is not AgentOS 2
++
++AgentOS was a personal automation OS. This is different.
++
++Do not revive AgentOS architecture.
++Do not port AgentOS scripts.
++Do not rebuild a daily pipeline.
++
++Carry forward patterns only:
++
++- health checks
++- atomic writes
++- run logs
++- routing discipline
++- approval policy
++- dashboard/reporting instinct
++
++## 2. Product Decision
++
++Build Agentic Workflow v3 as a reliability layer around the current Claude Code workflow.
++
++Do not build a Zed-native ACP platform first.
++Do not build a custom coding harness first.
++Do not build model routing first.
++Do not build a fleet first.
++
++The v3 product is:
++
++> A local-first coding-agent reliability workflow that records each meaningful coding run, captures
++> failures as replayable eval cases, requires evidence before shipping, and turns repeated failures
++> into changes to tests, skills, hooks, or workflow rules.
++
++## 3. Product Requirements Document
++
++### 3.1 Product Name
++
++Agentic Workflow v3: Reliability Layer
++
++### 3.2 Problem
++
++The current system is strong at performing coding work with Claude Code, but weak at accumulating
++structured evidence that it is getting more reliable.
++
++Failures currently become:
++
++- conversation memory
++- ad hoc test additions
++- occasional brain notes
++- handoff text
++
++They should become:
++
++- replayable eval cases
++- structured failure classifications
++- regression tests
++- metrics
++- targeted workflow improvements
++
++### 3.3 Goals
++
++1. Make every substantial coding task leave a durable run record.
++2. Make every meaningful failure reproducible or at least inspectable.
++3. Make `/ship` produce consistent evidence artifacts.
++4. Make failure analysis update the right layer: test, skill, hook, brief, repo code, or project docs.
++5. Support Windows desktop, WSL2 lab, and Mac workspace without source-of-truth confusion.
++6. Strengthen the portfolio story from "good Claude config" to "agentic coding reliability system."
++
++### 3.4 Non-Goals
++
++- No Zed/ACP integration in v3 MVP.
++- No custom full coding-agent harness in v3 MVP.
++- No local model coding loop.
++- No distributed fleet.
++- No autonomous deploy/push/send behavior.
++- No database.
++- No copying whole repos into failure cases unless absolutely necessary.
++- No public dashboard until the local artifacts are useful.
++
++### 3.5 Target User
++
++Primary user: Kerry Shi.
++
++Use cases:
++
++- build portfolio projects
++- harden real systems
++- resume interrupted work across sessions and machines
++- prove agentic workflow quality in interviews
++- learn from agent failures instead of repeating them
++
++### 3.6 Operating Environment
++
++#### Windows desktop
++
++Role: canonical execution machine and source of truth.
++
++Responsibilities:
++
++- primary Claude Code sessions
++- project repos
++- `.claude` config
++- run/failure registry
++- validation hooks
++- heavy local execution
++- Ollama available for helper tasks, not main coding loop
++
++Constraints:
++
++- PowerShell 5.1 quote/multiline issues
++- execution policy issues
++- Windows paths
++- Git safe-directory friction under alternate users
++- repo-config RCE risk for automated inspection
++
++#### WSL2
++
++Role: ML/CUDA lab and Linux compatibility environment.
++
++Responsibilities:
++
++- PyTorch/CUDA experiments
++- Linux-only tooling
++- optional local eval experiments
++- optional tmux persistent Claude workflow if proven stable
++
++Constraints:
++
++- not canonical AgentOS runtime
++- avoid duplicate source-of-truth repos
++- only use WSL paths deliberately
++
++#### MacBook Air
++
++Role: thin client / portable workspace.
++
++Responsibilities:
++
++- inspect/edit synced projects
++- drive desktop over Tailscale
++- resume/attach to long sessions once Phase 2 is complete
++
++Constraints:
++
++- commits travel; uncommitted state does not
++- Mac hook parity is incomplete
++- desktop remains source of truth unless explicitly changed
++- remote writes need human care
++
++### 3.7 Information Architecture
++
++Recommended repo: `C:\Users\PC\agentic-workflow`
++
++```text
++agentic-workflow/
++  HANDOFF.md
++  PORTFOLIO.md
++  PRD.md
++
++  runs/
++    2026-07-08_example-task/
++      run.json
++      task.md
++      plan.md
++      evidence.md
++      review.md
++      final.md
++      diff.patch
++      commands.jsonl
++
++  failures/
++    CASE-0001_wrong-order-confirmation/
++      failure.json
++      prompt.md
++      expected.md
++      actual.md
++      repro.md
++      classification.md
++      fix.md
++      regression.md
++
++  templates/
++    run-record.md
++    ship-report.md
++    failure-case.md
++    postmortem.md
++
++  scripts/
++    new_run.ps1
++    capture_failure.ps1
++    summarize_metrics.ps1
++
++  metrics/
++    summary.md
++    runs.jsonl
++```
++
++Raw transcripts should not be committed by default. Store only sanitized excerpts.
++
++### 3.8 Core Workflows
++
++#### Workflow A: Start a Run
++
++Trigger: user starts a substantial coding task.
++
++Steps:
++
++1. Create a run folder.
++2. Record task, repo, branch, objective, validation target, and risk level.
++3. Link to project `STATUS.md`.
++4. Optionally create/reuse a worktree.
++5. Proceed with the normal `/plan -> build -> /ship` loop.
++
++Acceptance criteria:
++
++- run folder exists before major edits
++- run has a unique ID
++- run links to repo and branch
++- run states expected validation
++
++#### Workflow B: Ship a Change
++
++Trigger: user or agent invokes `/ship`.
++
++Steps:
++
++1. Gather diff.
++2. Run independent review.
++3. Address must-fix findings.
++4. Run validation commands.
++5. Capture evidence.
++6. Write `evidence.md`, `review.md`, `final.md`, and `diff.patch`.
++
++Acceptance criteria:
++
++- no substantial "done" without evidence
++- reviewer findings are recorded
++- test/lint/typecheck outputs are summarized
++- risks and follow-ups are explicit
++
++#### Workflow C: Capture Failure
++
++Trigger: tests fail, reviewer finds a serious issue, user reports a regression, or agent behavior is wrong.
++
++Steps:
++
++1. Create `failures/CASE-####_slug/`.
++2. Record expected vs actual behavior.
++3. Record repro command or manual reproduction steps.
++4. Classify failure.
++5. Link to run, repo, commit, branch, and files.
++6. Add or specify regression test.
++7. Record fix and prevention layer.
++
++Failure taxonomy:
++
++- bad context
++- bad plan
++- wrong file edited
++- syntax/type error
++- test failure
++- hallucinated API
++- unsafe command
++- weak verification
++- user intent misunderstood
++- tool error
++- environment/platform issue
++- permission issue
++- shortcut/gamed check
++- regression introduced
++
++Acceptance criteria:
++
++- every serious failure has a case
++- every fixed bug has a regression where practical
++- every case names a prevention layer
++
++#### Workflow D: Postmortem and Improve
++
++Trigger: failure case is fixed, repeated issue appears, or review catches a pattern.
++
++Steps:
++
++1. Diagnose root cause.
++2. Decide improvement layer:
++   - project test
++   - project code
++   - skill update
++   - global brief update
++   - hook update
++   - brain note
++   - metrics only
++3. Apply improvement with human approval for config/infra changes.
++4. Link improvement back to failure case.
++
++Acceptance criteria:
++
++- no vague "agent messed up" labels
++- fix is attached to a durable mechanism
++- repeated issues become rules or skills
++
++#### Workflow E: Sync Across Machines
++
++Trigger: moving between Windows desktop and Mac.
++
++Steps:
++
++1. Commit project work before switching machines.
++2. Sync `agentic-workflow`, `.claude`, and brain according to existing process.
++3. Do not treat Mac uncommitted state as canonical unless explicitly decided.
++4. Keep raw/private logs local unless sanitized.
++
++Acceptance criteria:
++
++- run/failure artifacts travel intentionally
++- no source-of-truth ambiguity
++- no credential material is synced
++
++### 3.9 Functional Requirements
++
++#### FR1: Run Records
++
++The system must support creating a run record with:
++
++- run ID
++- date/time
++- repo
++- branch/worktree
++- task objective
++- user prompt summary
++- validation plan
++- risk level
++- files changed
++- commands run
++- evidence links
++- reviewer result
++- final outcome
++
++#### FR2: Failure Cases
++
++The system must support creating failure cases with:
++
++- case ID
++- linked run
++- failure class
++- expected behavior
++- actual behavior
++- repro steps
++- evidence
++- proposed fix
++- regression test
++- prevention layer
++
++#### FR3: Ship Report
++
++The `/ship` workflow must produce a structured report with:
++
++- original intent
++- what changed
++- validation performed
++- evidence
++- independent review notes
++- risks
++- follow-ups
++
++#### FR4: Permission Policy
++
++The system must define approval levels for coding tasks.
++
++Minimum policy:
++
++- Auto: local read/search/edit/test/lint/typecheck.
++- Approval: delete files, install packages, edit secrets, push, deploy, migrations, external APIs,
++  write to Mac, write outside current repo, change global config.
++- Blocked: mass messaging, financial actions, credential exfiltration, destructive operations outside
++  explicit scope.
++
++#### FR5: Cross-Platform Path Handling
++
++Run and failure records must preserve useful paths across:
++
++- Windows absolute paths
++- WSL paths
++- Mac paths
++
++Minimum approach:
++
++- store canonical machine: `windows`, `wsl`, or `mac`
++- store repo name
++- store repo-relative paths whenever possible
++- avoid hardcoding WSL paths for Windows-native projects
++
++#### FR6: Metrics
++
++The system must summarize:
++
++- runs started
++- runs shipped
++- failed runs
++- failure classes
++- review must-fix count
++- regressions added
++- validation evidence rate
++- escaped bugs
++- average time from start to ship, when available
++
++#### FR7: Sanitization
++
++The system must not commit:
++
++- API keys
++- OAuth tokens
++- raw private transcripts
++- `.env` files
++- full email/message contents
++- credential-bearing command output
++
++Raw logs may exist locally but should be gitignored.
++
++#### FR8: Hook Compatibility
++
++Windows hook behavior must remain safe:
++
++- trust gate before inspecting repos
++- no repo content inspection for untrusted repos
++- no mutation from Stop hook
++- no blocking on report-only lint
++- explicit trusted repo allowlist
++
++Mac hook parity is optional in MVP but must be documented.
++
++### 3.10 Nonfunctional Requirements
++
++- Local-first.
++- Git-backed.
++- Low friction.
++- No database.
++- Human-readable markdown.
++- Machine-readable JSON where useful.
++- No automatic outward-facing actions.
++- No new always-on daemon in MVP.
++- Works when offline except for Claude/API-dependent work.
++- Compatible with Windows-native workflows.
++
++### 3.11 Data Schemas
++
++#### run.json
++
++```json
++{
++  "run_id": "2026-07-08_example-task",
++  "created_at": "2026-07-08T14:30:00-04:00",
++  "machine": "windows",
++  "repo": "C:/Users/PC/example-repo",
++  "branch": "agent/example-task",
++  "worktree": null,
++  "objective": "Fix failing navbar test",
++  "risk_level": "medium",
++  "status": "in_progress",
++  "validation_plan": ["npm test", "npm run lint"],
++  "files_changed": [],
++  "linked_failures": [],
++  "final_outcome": null
++}
++```
++
++#### failure.json
++
++```json
++{
++  "case_id": "CASE-0001",
++  "created_at": "2026-07-08T15:00:00-04:00",
++  "linked_run": "2026-07-08_example-task",
++  "repo": "C:/Users/PC/example-repo",
++  "commit_or_branch": "agent/example-task",
++  "failure_class": "weak_verification",
++  "severity": "must_fix",
++  "repro_command": "npm test -- navbar",
++  "status": "open",
++  "prevention_layer": null
++}
++```
++
++### 3.12 Phased Roadmap
++
++#### Phase 0: Safety and scope reset
++
++Tasks:
++
++- Keep AgentOS retired.
++- Revoke/delete retired AgentOS OAuth credential material.
++- Confirm active repos are in the validation hook trusted allowlist.
++- Document coding-task permission policy.
++- Add this PRD to `agentic-workflow`.
++
++Done when:
++
++- no retired credential debt remains
++- the revamp direction is committed
++- Zed/ACP is explicitly deferred
++
++#### Phase 1: Run records and ship reports
++
++Tasks:
++
++- Add `runs/`, `templates/`, and `metrics/`.
++- Add `new_run` helper.
++- Update `/ship` to write structured evidence artifacts.
++- Require substantial tasks to link to a run record.
++
++Done when:
++
++- one real project change ships with a complete run record
++- evidence/report is readable without opening chat history
++
++#### Phase 2: Failure-to-eval capture
++
++Tasks:
++
++- Add `failures/`.
++- Add failure template.
++- Add `capture_failure` helper.
++- Update `/review` and `/ship` to create/link failure cases for serious findings.
++- Add first three real failure cases from recent known issues if worth preserving.
++
++Done when:
++
++- a failed task can be reproduced or inspected from the failure folder
++- fix links back to a regression or workflow improvement
++
++#### Phase 3: Metrics and postmortem loop
++
++Tasks:
++
++- Add `summarize_metrics` helper.
++- Produce `metrics/summary.md`.
++- Add `/postmortem` or extend `/distill` for failure lessons.
++- Track repeated failure classes.
++
++Done when:
++
++- the system can say what improved over time
++- repeated issues are visible
++
++#### Phase 4: Cross-machine hardening
++
++Tasks:
++
++- Finish Mac -> desktop persistent session decision.
++- Decide Mac hook parity.
++- Add path mapping conventions.
++- Confirm run/failure artifacts sync cleanly.
++
++Done when:
++
++- a task can start on desktop, be reviewed from Mac, and preserve run state cleanly
++
++#### Phase 5: Optional cockpit integrations
++
++Candidates:
++
++- Zed/ACP bridge
++- HTML/Lavish run dashboard
++- lightweight local dashboard
++- MCP wrappers
++- local code index
++
++Entry criteria:
++
++- Phases 1-3 are used habitually.
++- At least 10 run records exist.
++- At least 3 failure cases have led to durable improvements.
++
++### 3.13 Success Metrics
++
++After 30 days:
++
++- 10+ completed run records
++- 90%+ substantial tasks have evidence artifacts
++- 100% serious bugs have regression tests or a documented reason not to
++- 3+ failure cases converted into durable improvements
++- 0 accidental pushes/deploys/sends
++- 0 credential leaks into tracked artifacts
++- at least one cross-machine handoff tested end-to-end
++
++### 3.14 Risks
++
++#### Risk: Process overhead kills usage
++
++Mitigation:
++
++- make run records lightweight
++- use templates
++- only require full records for substantial tasks
++
++#### Risk: The system becomes documentation theater
++
++Mitigation:
++
++- every record must link to evidence, diff, test output, or failure case
++- metrics should count actual shipped changes and regressions
++
++#### Risk: Raw traces expose private data
++
++Mitigation:
++
++- commit summaries, not raw transcripts
++- gitignore raw logs
++- sanitize excerpts
++
++#### Risk: Rebuilding a harness distracts from useful work
++
++Mitigation:
++
++- no custom executor in MVP
++- use Claude Code and existing skills
++- build recordkeeping first
++
++#### Risk: Windows/Mac/WSL split causes path drift
++
++Mitigation:
++
++- canonical repo-relative paths
++- machine field in JSON
++- desktop remains source of truth unless explicitly changed
++
++### 3.15 Explicit Decision on Zed/ACP
++
++Zed/ACP is deferred.
++
++Rationale:
++
++- The active workflow is Claude Code-centered.
++- Reliability artifacts are missing regardless of editor.
++- ACP integration would create a second control surface before the first one has durable evals.
++- If Zed is added later, it should call into the existing run/failure system, not replace it.
++
++Future Zed story:
++
++```text
++Zed = optional cockpit
++Claude Code workflow = agent engine
++Agentic Workflow v3 = reliability/eval layer
++Project repos = actual work
++```
++
++### 3.16 Final Recommendation
++
++Build v3 as a reliability layer, not a new platform.
++
++The best next concrete task:
++
++1. Create `runs/`, `failures/`, `templates/`, and `metrics/` in `agentic-workflow`.
++2. Update `/ship` so every substantial task writes a structured ship report.
++3. Add a failure-case template and use it on the next real agent mistake.
++4. Revisit Zed/ACP only after the workflow has real run/failure data.
++
+
+diff --git a/docs/path-conventions.md b/docs/path-conventions.md
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/docs/path-conventions.md
+@@ -0,0 +1,21 @@
++# Path Conventions
++
++Use paths that survive Windows, WSL, and Mac handoffs.
++
++## Required Fields
++
++Every run and failure JSON record should keep:
++
++- `machine`: `windows`, `wsl`, or `mac`
++- `repo`: canonical path on the machine where work ran
++- `repo_name`: stable short repo name
++- repo-relative file paths in Markdown sections whenever possible
++
++## Machine Rules
++
++- Windows desktop is canonical unless Kerry explicitly changes the source of truth.
++- WSL paths are only canonical for WSL-native work.
++- Mac work should be committed before switching machines; uncommitted state does not travel safely.
++- Do not hardcode WSL paths for Windows-native projects.
++- Do not treat Mac hook behavior as equivalent to Windows until parity is intentionally built.
++
+
+diff --git a/docs/permission-policy.md b/docs/permission-policy.md
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/docs/permission-policy.md
+@@ -0,0 +1,41 @@
++# Coding Task Permission Policy
++
++This policy keeps the workflow productive while making the reliability story honest.
++
++## Auto
++Allowed without an extra prompt when scoped to the active repo or current task:
++
++- Read/search local files.
++- Create or edit local project files.
++- Run local tests, lint, typecheck, formatters, and build checks.
++- Inspect git status, diff, log, branches, and worktrees.
++- Create run/failure records in this repo.
++- Make local commits only when Kerry explicitly asked for a commit.
++
++## Approval
++Ask Kerry first:
++
++- Delete files or perform destructive filesystem operations.
++- Install packages or change package managers.
++- Change global config, hooks, shells, scheduled tasks, or machine policy.
++- Touch secrets, OAuth tokens, `.env`, key material, credentials, or prod config.
++- Push, deploy, publish, send messages, email, or call external APIs with side effects.
++- Run migrations or irreversible data changes.
++- Write to the Mac over SSH.
++- Write outside the active repo or outside an explicitly named target directory.
++
++## Blocked
++Do not do these:
++
++- Mass messaging/outreach without explicit human approval at send time.
++- Financial actions.
++- Credential exfiltration or secret printing.
++- Destructive operations outside the explicit task scope.
++- Repo inspection that bypasses the trusted-repo gate for hooks.
++
++## Notes
++
++- The default posture is local-first and reversible.
++- Full-auto tooling does not override human judgment for outward-facing or hard-to-reverse actions.
++- Config/infra changes must be documented with what changed, why, and how it was verified.
++
+
+diff --git a/docs/workflows.md b/docs/workflows.md
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/docs/workflows.md
+@@ -0,0 +1,61 @@
++# Agentic Workflow v3 MVP
++
++Agentic Workflow v3 is a reliability layer around the existing Claude Code workflow.
++
++It does not replace `/plan`, `/review`, `/ship`, worktrees, hooks, or subagents. It adds durable run records, failure cases, ship evidence, and metrics.
++
++## Workflow A: Start a Run
++
++Use for substantial coding tasks.
++
++```powershell
++powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\PC\agentic-workflow\scripts\new_run.ps1 `
++  -Objective "Fix failing navbar test" `
++  -Repo C:\Users\PC\example-repo `
++  -RiskLevel medium `
++  -ValidationPlan "npm test","npm run lint"
++```
++
++Done when `runs/<run-id>/run.json` exists before major edits.
++
++## Workflow B: Ship a Change
++
++Run the normal `/ship` process first: diff scan, independent review, validation, and evidence.
++
++Then complete the run record:
++
++```powershell
++powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\PC\agentic-workflow\scripts\complete_run.ps1 `
++  -RunId 2026-07-08_1530_fix-navbar-test `
++  -Status shipped `
++  -FinalOutcome "Fixed failing navbar test and added regression coverage." `
++  -ReviewerResult "No must-fix findings remain." `
++  -Evidence "npm test and npm run lint passed." `
++  -CaptureDiff
++```
++
++Done when `evidence.md`, `review.md`, `final.md`, and `diff.patch` tell the story without opening chat history.
++
++## Workflow C: Capture Failure
++
++Use when tests fail, review finds a serious issue, the user reports a regression, or the agent behavior itself was wrong.
++
++```powershell
++powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\PC\agentic-workflow\scripts\capture_failure.ps1 `
++  -Summary "Reviewer caught wrong order confirmation flow" `
++  -LinkedRun 2026-07-08_1530_fix-navbar-test `
++  -FailureClass weak_verification `
++  -Severity must_fix `
++  -ReproCommand "pytest tests/test_orders.py -k confirmation"
++```
++
++Done when the case has expected behavior, actual behavior, reproduction, classification, fix, regression, and prevention layer.
++
++## Workflow D: Summarize Metrics
++
++```powershell
++powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\PC\agentic-workflow\scripts\summarize_metrics.ps1
++```
++
++Done when `metrics/summary.md` shows runs, shipped runs, failure classes, regressions, and evidence rate.
++
+
+diff --git a/failures/.gitkeep b/failures/.gitkeep
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/failures/.gitkeep
+@@ -0,0 +1,1 @@
++
+
+diff --git a/metrics/runs.jsonl b/metrics/runs.jsonl
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/metrics/runs.jsonl
+@@ -0,0 +1,8 @@
++{"type":"run_started","at":"2026-07-08T15:45:21-04:00","run_id":"2026-07-08_1545_build-agentic-workflow-v3-mvp","repo":"C:/Users/PC/agentic-workflow","objective":"Build Agentic Workflow v3 MVP","risk_level":"medium"}
++{"type":"run_completed","at":"2026-07-08T15:48:26-04:00","run_id":"2026-07-08_1545_build-agentic-workflow-v3-mvp","status":"shipped","repo":"C:/Users/PC/agentic-workflow"}
++{"type":"run_completed","at":"2026-07-08T15:51:33-04:00","run_id":"2026-07-08_1545_build-agentic-workflow-v3-mvp","status":"shipped","repo":"C:/Users/PC/agentic-workflow"}
++{"type":"run_completed","at":"2026-07-08T15:52:47-04:00","run_id":"2026-07-08_1545_build-agentic-workflow-v3-mvp","status":"shipped","repo":"C:/Users/PC/agentic-workflow"}
++{"type":"run_completed","at":"2026-07-08T15:53:43-04:00","run_id":"2026-07-08_1545_build-agentic-workflow-v3-mvp","status":"shipped","repo":"C:/Users/PC/agentic-workflow"}
++{"type":"run_completed","at":"2026-07-08T15:54:21-04:00","run_id":"2026-07-08_1545_build-agentic-workflow-v3-mvp","status":"shipped","repo":"C:/Users/PC/agentic-workflow"}
++{"type":"run_completed","at":"2026-07-08T15:55:35-04:00","run_id":"2026-07-08_1545_build-agentic-workflow-v3-mvp","status":"shipped","repo":"C:/Users/PC/agentic-workflow"}
++{"type":"run_completed","at":"2026-07-08T15:56:26-04:00","run_id":"2026-07-08_1545_build-agentic-workflow-v3-mvp","status":"shipped","repo":"C:/Users/PC/agentic-workflow"}
+
+diff --git a/metrics/summary.json b/metrics/summary.json
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/metrics/summary.json
+@@ -0,0 +1,14 @@
++{
++    "updated_at":  "2026-07-08T15:48:34-04:00",
++    "runs_started":  1,
++    "runs_shipped":  1,
++    "failed_runs":  0,
++    "failures_total":  0,
++    "failures_open":  0,
++    "regressions_added":  0,
++    "validation_evidence_rate_percent":  100,
++    "average_minutes_start_to_ship":  3.1,
++    "failure_classes":  {
++
++                        }
++}
+
+diff --git a/metrics/summary.md b/metrics/summary.md
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/metrics/summary.md
+@@ -0,0 +1,20 @@
++# Agentic Workflow Metrics
++
++Last updated: 2026-07-08T15:48:34-04:00
++
++| Metric | Value |
++|---|---:|
++| Runs started | 1 |
++| Runs shipped/complete | 1 |
++| Runs with linked failures | 0 |
++| Failure cases | 0 |
++| Open failures | 0 |
++| Regressions added | 0 |
++| Validation evidence rate | 100% |
++| Avg minutes start to ship | 3.1 |
++
++## Failure Classes
++
++| Class | Count |
++|---|---:|
++| none | 0 |
+
+diff --git a/runs/.gitkeep b/runs/.gitkeep
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/runs/.gitkeep
+@@ -0,0 +1,1 @@
++
+
+diff --git a/runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/commands.jsonl b/runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/commands.jsonl
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/commands.jsonl
+@@ -0,0 +1,0 @@
+
+diff --git a/runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/evidence.md b/runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/evidence.md
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/evidence.md
+@@ -0,0 +1,10 @@
++# Evidence
++
++## Summary
++Dogfood run record created and completed; metrics regenerated; parser validation passed for all scripts; git diff --check passed.
++
++## Links
++- TBD
++
++## Captured At
++2026-07-08T15:56:59-04:00
+
+diff --git a/runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/final.md b/runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/final.md
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/final.md
+@@ -0,0 +1,57 @@
++# Final
++
++## Outcome
++Built the Agentic Workflow v3 MVP reliability layer in the agentic-workflow repo.
++
++## Status
++shipped
++
++## Files Changed
++- .gitignore
++- docs/
++- docs/path-conventions.md
++- docs/permission-policy.md
++- docs/workflows.md
++- failures/
++- failures/.gitkeep
++- HANDOFF.md
++- metrics/
++- metrics/runs.jsonl
++- metrics/summary.json
++- metrics/summary.md
++- PORTFOLIO.md
++- PRD.md
++- README.md
++- runs/
++- runs/.gitkeep
++- runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/commands.jsonl
++- runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/diff.patch
++- runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/evidence.md
++- runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/final.md
++- runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/plan.md
++- runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/review.md
++- runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/run.json
++- runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/task.md
++- scripts/
++- scripts/capture_failure.ps1
++- scripts/complete_run.ps1
++- scripts/new_run.ps1
++- scripts/summarize_metrics.ps1
++- templates/
++- templates/failure-case.md
++- templates/postmortem.md
++- templates/run-record.md
++- templates/ship-report.md
++- USAGE.md
++
++## Validation / Evidence
++Dogfood run record created and completed; metrics regenerated; parser validation passed for all scripts; git diff --check passed.
++
++## Reviewer Result
++Manual validation: PowerShell parser reported syntax OK for all scripts; git diff --check returned clean with CRLF normalization warnings only.
++
++## Risks
++Global Claude config was not mutated; /ship integration remains a deliberate follow-up.
++
++## Follow-ups
++Use v3 records on the next substantial task, then update the active /ship skill if this flow feels right.
+
+diff --git a/runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/plan.md b/runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/plan.md
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/plan.md
+@@ -0,0 +1,12 @@
++# Plan
++
++## Approach
++- TBD
++
++## Constraints
++- Preserve surrounding code style.
++- Keep the diff scoped to the stated objective.
++- Escalate product, API, data model, security, and irreversible decisions.
++
++## Validation
++- powershell -NoProfile -ExecutionPolicy Bypass -File scripts\summarize_metrics.ps1,git diff --check
+
+diff --git a/runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/review.md b/runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/review.md
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/review.md
+@@ -0,0 +1,7 @@
++# Review
++
++## Independent Reviewer Result
++Manual validation: PowerShell parser reported syntax OK for all scripts; git diff --check returned clean with CRLF normalization warnings only.
++
++## Remaining Items
++TBD
+
+diff --git a/runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/run.json b/runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/run.json
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/run.json
+@@ -0,0 +1,64 @@
++{
++    "run_id":  "2026-07-08_1545_build-agentic-workflow-v3-mvp",
++    "created_at":  "2026-07-08T15:45:21-04:00",
++    "completed_at":  "2026-07-08T15:56:59-04:00",
++    "machine":  "windows",
++    "repo":  "C:/Users/PC/agentic-workflow",
++    "repo_name":  "agentic-workflow",
++    "branch":  "master",
++    "worktree":  null,
++    "objective":  "Build Agentic Workflow v3 MVP",
++    "user_prompt_summary":  "User asked: build the agentic workflow v 3 mvp",
++    "status_path":  "HANDOFF.md",
++    "risk_level":  "medium",
++    "status":  "shipped",
++    "validation_plan":  [
++                            "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\summarize_metrics.ps1,git diff --check"
++                        ],
++    "files_changed":  [
++                          ".gitignore",
++                          "docs/",
++                          "docs/path-conventions.md",
++                          "docs/permission-policy.md",
++                          "docs/workflows.md",
++                          "failures/",
++                          "failures/.gitkeep",
++                          "HANDOFF.md",
++                          "metrics/",
++                          "metrics/runs.jsonl",
++                          "metrics/summary.json",
++                          "metrics/summary.md",
++                          "PORTFOLIO.md",
++                          "PRD.md",
++                          "README.md",
++                          "runs/",
++                          "runs/.gitkeep",
++                          "runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/commands.jsonl",
++                          "runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/diff.patch",
++                          "runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/evidence.md",
++                          "runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/final.md",
++                          "runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/plan.md",
++                          "runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/review.md",
++                          "runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/run.json",
++                          "runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/task.md",
++                          "scripts/",
++                          "scripts/capture_failure.ps1",
++                          "scripts/complete_run.ps1",
++                          "scripts/new_run.ps1",
++                          "scripts/summarize_metrics.ps1",
++                          "templates/",
++                          "templates/failure-case.md",
++                          "templates/postmortem.md",
++                          "templates/run-record.md",
++                          "templates/ship-report.md",
++                          "USAGE.md"
++                      ],
++    "linked_failures":  [
++
++                        ],
++    "evidence_links":  [
++
++                       ],
++    "reviewer_result":  "Manual validation: PowerShell parser reported syntax OK for all scripts; git diff --check returned clean with CRLF normalization warnings only.",
++    "final_outcome":  "Built the Agentic Workflow v3 MVP reliability layer in the agentic-workflow repo."
++}
+
+diff --git a/runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/task.md b/runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/task.md
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/runs/2026-07-08_1545_build-agentic-workflow-v3-mvp/task.md
+@@ -0,0 +1,17 @@
++# 2026-07-08_1545_build-agentic-workflow-v3-mvp
++
++## Objective
++Build Agentic Workflow v3 MVP
++
++## User Prompt Summary
++User asked: build the agentic workflow v 3 mvp
++
++## Repo
++- Machine: windows
++- Path: C:\Users\PC\agentic-workflow
++- Branch/worktree: unknown
++- Status path: HANDOFF.md
++- Risk level: medium
++
++## Validation Plan
++- powershell -NoProfile -ExecutionPolicy Bypass -File scripts\summarize_metrics.ps1,git diff --check
+
+diff --git a/scripts/capture_failure.ps1 b/scripts/capture_failure.ps1
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/scripts/capture_failure.ps1
+@@ -0,0 +1,246 @@
++[CmdletBinding()]
++param(
++    [Parameter(Mandatory = $true)]
++    [string]$Summary,
++
++    [Parameter(Mandatory = $true)]
++    [ValidateSet(
++        "bad_context",
++        "bad_plan",
++        "wrong_file_edited",
++        "syntax_type_error",
++        "test_failure",
++        "hallucinated_api",
++        "unsafe_command",
++        "weak_verification",
++        "user_intent_misunderstood",
++        "tool_error",
++        "environment_platform_issue",
++        "permission_issue",
++        "shortcut_gamed_check",
++        "regression_introduced"
++    )]
++    [string]$FailureClass,
++
++    [ValidateSet("must_fix", "should_fix", "escaped_bug", "blocker", "note")]
++    [string]$Severity = "must_fix",
++
++    [string]$LinkedRun = "",
++
++    [string]$Repo = (Get-Location).Path,
++
++    [string]$CommitOrBranch = "",
++
++    [string]$ReproCommand = "",
++
++    [string]$Expected = "",
++
++    [string]$Actual = "",
++
++    [string]$PreventionLayer = "",
++
++    [ValidateSet("windows", "wsl", "mac")]
++    [string]$Machine = "windows"
++)
++
++Set-StrictMode -Version Latest
++$ErrorActionPreference = "Stop"
++
++function New-Slug {
++    param([Parameter(Mandatory = $true)][string]$Text)
++
++    $slug = [regex]::Replace($Text.ToLowerInvariant(), "[^a-z0-9]+", "-").Trim("-")
++    if ($slug.Length -gt 48) {
++        $slug = $slug.Substring(0, 48).Trim("-")
++    }
++    if ([string]::IsNullOrWhiteSpace($slug)) {
++        return "failure"
++    }
++    return $slug
++}
++
++function ConvertTo-RepoPath {
++    param([Parameter(Mandatory = $true)][string]$Path)
++
++    if (Test-Path -LiteralPath $Path) {
++        return (Resolve-Path -LiteralPath $Path).Path
++    }
++    return $Path
++}
++
++function Get-GitRef {
++    param([Parameter(Mandatory = $true)][string]$RepoPath)
++
++    try {
++        $ref = & git -C $RepoPath rev-parse --abbrev-ref HEAD 2>$null | Select-Object -First 1
++        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($ref)) {
++            return $ref.Trim()
++        }
++    }
++    catch {
++        return ""
++    }
++    return ""
++}
++
++$scriptDir = Split-Path -Parent $PSCommandPath
++$root = Split-Path -Parent $scriptDir
++$failuresDir = Join-Path $root "failures"
++$metricsDir = Join-Path $root "metrics"
++New-Item -ItemType Directory -Force -Path $failuresDir, $metricsDir | Out-Null
++
++$caseNumbers = @()
++Get-ChildItem -LiteralPath $failuresDir -Directory -Filter "CASE-*" -ErrorAction SilentlyContinue | ForEach-Object {
++    if ($_.Name -match "^CASE-(\d{4})") {
++        $caseNumbers += [int]$Matches[1]
++    }
++}
++$nextNumber = 1
++if ($caseNumbers.Count -gt 0) {
++    $nextNumber = (($caseNumbers | Measure-Object -Maximum).Maximum + 1)
++}
++
++$caseId = "CASE-{0:D4}" -f $nextNumber
++$caseDirName = "{0}_{1}" -f $caseId, (New-Slug $Summary)
++$caseDir = Join-Path $failuresDir $caseDirName
++New-Item -ItemType Directory -Force -Path $caseDir | Out-Null
++
++$repoPath = ConvertTo-RepoPath $Repo
++if ([string]::IsNullOrWhiteSpace($CommitOrBranch)) {
++    $CommitOrBranch = Get-GitRef $repoPath
++}
++if ([string]::IsNullOrWhiteSpace($CommitOrBranch)) {
++    $CommitOrBranch = "unknown"
++}
++
++$createdAt = Get-Date -Format "yyyy-MM-ddTHH:mm:sszzz"
++$repoName = Split-Path -Leaf $repoPath
++$failureData = [ordered]@{
++    case_id = $caseId
++    created_at = $createdAt
++    machine = $Machine
++    linked_run = $LinkedRun
++    repo = $repoPath.Replace("\", "/")
++    repo_name = $repoName
++    commit_or_branch = $CommitOrBranch
++    summary = $Summary
++    failure_class = $FailureClass
++    severity = $Severity
++    repro_command = $ReproCommand
++    status = "open"
++    prevention_layer = $(if ([string]::IsNullOrWhiteSpace($PreventionLayer)) { $null } else { $PreventionLayer })
++    regression_test = $null
++}
++
++($failureData | ConvertTo-Json -Depth 8) | Set-Content -LiteralPath (Join-Path $caseDir "failure.json") -Encoding UTF8
++
++@"
++# Prompt / Situation
++
++$Summary
++
++## Linked Run
++$LinkedRun
++
++## Repo
++- Machine: $Machine
++- Path: $repoPath
++- Commit/branch: $CommitOrBranch
++"@ | Set-Content -LiteralPath (Join-Path $caseDir "prompt.md") -Encoding UTF8
++
++@"
++# Expected Behavior
++
++$(if ([string]::IsNullOrWhiteSpace($Expected)) { "TBD" } else { $Expected })
++"@ | Set-Content -LiteralPath (Join-Path $caseDir "expected.md") -Encoding UTF8
++
++@"
++# Actual Behavior
++
++$(if ([string]::IsNullOrWhiteSpace($Actual)) { "TBD" } else { $Actual })
++"@ | Set-Content -LiteralPath (Join-Path $caseDir "actual.md") -Encoding UTF8
++
++@"
++# Reproduction
++
++## Command
++
++```powershell
++$ReproCommand
++```
++
++## Manual Steps
++- TBD
++"@ | Set-Content -LiteralPath (Join-Path $caseDir "repro.md") -Encoding UTF8
++
++@"
++# Classification
++
++- Failure class: $FailureClass
++- Severity: $Severity
++- Prevention layer: $(if ([string]::IsNullOrWhiteSpace($PreventionLayer)) { "TBD" } else { $PreventionLayer })
++
++## Root Cause
++TBD
++
++## Contributing Factors
++- TBD
++"@ | Set-Content -LiteralPath (Join-Path $caseDir "classification.md") -Encoding UTF8
++
++@"
++# Fix
++
++## Proposed Fix
++TBD
++
++## Applied Fix
++TBD
++
++## Verification
++TBD
++"@ | Set-Content -LiteralPath (Join-Path $caseDir "fix.md") -Encoding UTF8
++
++@"
++# Regression
++
++## Regression Test
++TBD
++
++## Failing-First Evidence
++TBD
++
++## Passing Evidence
++TBD
++"@ | Set-Content -LiteralPath (Join-Path $caseDir "regression.md") -Encoding UTF8
++
++if (-not [string]::IsNullOrWhiteSpace($LinkedRun)) {
++    $runJson = Join-Path (Join-Path $root "runs") (Join-Path $LinkedRun "run.json")
++    if (Test-Path -LiteralPath $runJson) {
++        $run = Get-Content -Raw -LiteralPath $runJson | ConvertFrom-Json
++        $linkedFailures = @()
++        if ($null -ne $run.linked_failures) {
++            $linkedFailures = @($run.linked_failures)
++        }
++        if ($linkedFailures -notcontains $caseId) {
++            $linkedFailures += $caseId
++        }
++        $run.linked_failures = $linkedFailures
++        ($run | ConvertTo-Json -Depth 8) | Set-Content -LiteralPath $runJson -Encoding UTF8
++    }
++}
++
++$event = [ordered]@{
++    type = "failure_captured"
++    at = $createdAt
++    case_id = $caseId
++    linked_run = $LinkedRun
++    failure_class = $FailureClass
++    severity = $Severity
++    repo = $repoPath.Replace("\", "/")
++}
++$eventLine = $event | ConvertTo-Json -Compress -Depth 5
++Add-Content -LiteralPath (Join-Path $metricsDir "runs.jsonl") -Value $eventLine -Encoding UTF8
++
++Write-Output ("Created failure case: {0}" -f $caseId)
++Write-Output $caseDir
++
+
+diff --git a/scripts/complete_run.ps1 b/scripts/complete_run.ps1
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/scripts/complete_run.ps1
+@@ -0,0 +1,320 @@
++[CmdletBinding()]
++param(
++    [Parameter(Mandatory = $true)]
++    [string]$RunId,
++
++    [ValidateSet("shipped", "complete", "blocked", "abandoned")]
++    [string]$Status = "shipped",
++
++    [string]$FinalOutcome = "",
++
++    [string]$ReviewerResult = "",
++
++    [string]$Evidence = "",
++
++    [string]$Risks = "",
++
++    [string]$FollowUps = "",
++
++    [string[]]$FilesChanged = @(),
++
++    [string[]]$EvidenceLinks = @(),
++
++    [string]$Repo = "",
++
++    [switch]$CaptureDiff
++)
++
++Set-StrictMode -Version Latest
++$ErrorActionPreference = "Stop"
++
++function Get-GitFilesChanged {
++    param([Parameter(Mandatory = $true)][string]$RepoPath)
++
++    $allFiles = @()
++    try {
++        $statusLines = & git -C $RepoPath status --porcelain=v1 2>$null
++        foreach ($line in @($statusLines)) {
++            if ([string]::IsNullOrWhiteSpace($line) -or $line.Length -lt 4) {
++                continue
++            }
++            $path = $line.Substring(3).Trim()
++            if ($path -match " -> ") {
++                $path = @($path -split " -> ")[-1]
++            }
++            $path = $path.Trim('"')
++            if (-not [string]::IsNullOrWhiteSpace($path)) {
++                $allFiles += $path
++            }
++        }
++    }
++    catch {
++    }
++
++    # Fallback for older Git/status edge cases.
++    try {
++        $untracked = & git -C $RepoPath ls-files --others --exclude-standard 2>$null
++        $allFiles += @($untracked | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
++    }
++    catch {
++    }
++
++    return @($allFiles | Sort-Object -Unique)
++}
++
++function Get-GitBranch {
++    param([Parameter(Mandatory = $true)][string]$RepoPath)
++
++    try {
++        $branchName = & git -C $RepoPath rev-parse --abbrev-ref HEAD 2>$null | Select-Object -First 1
++        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($branchName)) {
++            return $branchName.Trim()
++        }
++    }
++    catch {
++        return ""
++    }
++    return ""
++}
++
++function Get-GitStatusEntries {
++    param([Parameter(Mandatory = $true)][string]$RepoPath)
++
++    $entries = @()
++    try {
++        $statusLines = & git -C $RepoPath status --porcelain=v1 2>$null
++        foreach ($line in @($statusLines)) {
++            if ([string]::IsNullOrWhiteSpace($line) -or $line.Length -lt 4) {
++                continue
++            }
++            $code = $line.Substring(0, 2)
++            $path = $line.Substring(3).Trim()
++            if ($path -match " -> ") {
++                $path = @($path -split " -> ")[-1]
++            }
++            $path = $path.Trim('"')
++            if (-not [string]::IsNullOrWhiteSpace($path)) {
++                $entries += [pscustomobject]@{
++                    Code = $code
++                    Path = $path
++                }
++            }
++        }
++    }
++    catch {
++    }
++    return $entries
++}
++
++function New-UntrackedFilePatch {
++    param(
++        [Parameter(Mandatory = $true)][string]$RepoPath,
++        [Parameter(Mandatory = $true)][string]$RelativePath
++    )
++
++    $fullPath = Join-Path $RepoPath $RelativePath
++    if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
++        return ("# Untracked non-file path: {0}" -f $RelativePath)
++    }
++
++    $bytes = [System.IO.File]::ReadAllBytes($fullPath)
++    if ($bytes -contains 0) {
++        return ("# Binary untracked file omitted from text patch: {0}" -f $RelativePath)
++    }
++
++    $path = $RelativePath.Replace("\", "/")
++    $content = Get-Content -Raw -LiteralPath $fullPath -Encoding UTF8
++    $lines = @()
++    if (-not [string]::IsNullOrEmpty($content)) {
++        $lines = $content -split "`r?`n"
++        if ($lines.Count -gt 0 -and $lines[$lines.Count - 1] -eq "") {
++            $lines = $lines[0..($lines.Count - 2)]
++        }
++    }
++
++    $patch = @(
++        ("diff --git a/{0} b/{0}" -f $path),
++        "new file mode 100644",
++        "index 0000000..0000000",
++        "--- /dev/null",
++        ("+++ b/{0}" -f $path),
++        ("@@ -0,0 +1,{0} @@" -f $lines.Count)
++    )
++    foreach ($line in $lines) {
++        $patch += ("+{0}" -f $line)
++    }
++    return ($patch -join "`r`n")
++}
++
++function Get-GitDiff {
++    param([Parameter(Mandatory = $true)][string]$RepoPath)
++
++    $parts = @()
++    try {
++        $diff = & git -C $RepoPath diff --binary HEAD 2>$null
++        $trackedDiff = ($diff -join "`r`n")
++        if (-not [string]::IsNullOrWhiteSpace($trackedDiff)) {
++            $parts += $trackedDiff
++        }
++    }
++    catch {
++    }
++
++    if ($parts.Count -eq 0) {
++        $trackedEntries = @(Get-GitStatusEntries $RepoPath | Where-Object { $_.Code -ne "??" })
++        foreach ($entry in $trackedEntries) {
++            try {
++                $fileDiff = & git -C $RepoPath diff --binary HEAD -- $entry.Path 2>$null
++                $fileText = ($fileDiff -join "`r`n")
++                if (-not [string]::IsNullOrWhiteSpace($fileText)) {
++                    $parts += $fileText
++                }
++            }
++            catch {
++            }
++        }
++    }
++
++    try {
++        $untracked = & git -C $RepoPath ls-files --others --exclude-standard 2>$null
++        foreach ($file in @($untracked)) {
++            if ([string]::IsNullOrWhiteSpace($file)) {
++                continue
++            }
++            if ($file.Replace("\", "/") -like "runs/*/diff.patch") {
++                continue
++            }
++            $newFileText = New-UntrackedFilePatch -RepoPath $RepoPath -RelativePath $file
++            if (-not [string]::IsNullOrWhiteSpace($newFileText)) {
++                $parts += $newFileText
++            }
++        }
++    }
++    catch {
++    }
++
++    return ($parts -join "`r`n`r`n")
++}
++
++$scriptDir = Split-Path -Parent $PSCommandPath
++$root = Split-Path -Parent $scriptDir
++$runDir = Join-Path (Join-Path $root "runs") $RunId
++$runJson = Join-Path $runDir "run.json"
++$metricsDir = Join-Path $root "metrics"
++
++if (-not (Test-Path -LiteralPath $runJson)) {
++    throw "Run not found: $RunId"
++}
++
++New-Item -ItemType Directory -Force -Path $metricsDir | Out-Null
++
++$run = Get-Content -Raw -LiteralPath $runJson | ConvertFrom-Json
++if ([string]::IsNullOrWhiteSpace($Repo)) {
++    $Repo = $run.repo
++}
++$repoPath = $Repo.Replace("/", "\")
++
++$completedAt = Get-Date -Format "yyyy-MM-ddTHH:mm:sszzz"
++$run.status = $Status
++$run.completed_at = $completedAt
++if (([string]::IsNullOrWhiteSpace([string]$run.branch) -or $run.branch -eq "unknown") -and (Test-Path -LiteralPath $repoPath)) {
++    $detectedBranch = Get-GitBranch $repoPath
++    if (-not [string]::IsNullOrWhiteSpace($detectedBranch)) {
++        $run.branch = $detectedBranch
++    }
++}
++if (-not [string]::IsNullOrWhiteSpace($FinalOutcome)) {
++    $run.final_outcome = $FinalOutcome
++}
++if (-not [string]::IsNullOrWhiteSpace($ReviewerResult)) {
++    $run.reviewer_result = $ReviewerResult
++}
++
++$changedFiles = @($FilesChanged | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
++if ($changedFiles.Count -eq 0 -and -not [string]::IsNullOrWhiteSpace($repoPath) -and (Test-Path -LiteralPath $repoPath)) {
++    $changedFiles = Get-GitFilesChanged $repoPath
++}
++$run.files_changed = $changedFiles
++$run.evidence_links = @($EvidenceLinks)
++
++($run | ConvertTo-Json -Depth 8) | Set-Content -LiteralPath $runJson -Encoding UTF8
++
++$evidenceLinksMarkdown = if (@($EvidenceLinks).Count -gt 0) {
++    (@($EvidenceLinks) | ForEach-Object { "- {0}" -f $_ }) -join "`r`n"
++}
++else {
++    "- TBD"
++}
++
++@"
++# Evidence
++
++## Summary
++$Evidence
++
++## Links
++$evidenceLinksMarkdown
++
++## Captured At
++$completedAt
++"@ | Set-Content -LiteralPath (Join-Path $runDir "evidence.md") -Encoding UTF8
++
++@"
++# Review
++
++## Independent Reviewer Result
++$ReviewerResult
++
++## Remaining Items
++TBD
++"@ | Set-Content -LiteralPath (Join-Path $runDir "review.md") -Encoding UTF8
++
++$filesMarkdown = if ($changedFiles.Count -gt 0) {
++    ($changedFiles | ForEach-Object { "- {0}" -f $_ }) -join "`r`n"
++}
++else {
++    "- TBD"
++}
++
++@"
++# Final
++
++## Outcome
++$FinalOutcome
++
++## Status
++$Status
++
++## Files Changed
++$filesMarkdown
++
++## Validation / Evidence
++$Evidence
++
++## Reviewer Result
++$ReviewerResult
++
++## Risks
++$Risks
++
++## Follow-ups
++$FollowUps
++"@ | Set-Content -LiteralPath (Join-Path $runDir "final.md") -Encoding UTF8
++
++if ($CaptureDiff -and -not [string]::IsNullOrWhiteSpace($repoPath) -and (Test-Path -LiteralPath $repoPath)) {
++    $diffText = Get-GitDiff $repoPath
++    $diffText | Set-Content -LiteralPath (Join-Path $runDir "diff.patch") -Encoding UTF8
++}
++
++$event = [ordered]@{
++    type = "run_completed"
++    at = $completedAt
++    run_id = $RunId
++    status = $Status
++    repo = $run.repo
++}
++$eventLine = $event | ConvertTo-Json -Compress -Depth 5
++Add-Content -LiteralPath (Join-Path $metricsDir "runs.jsonl") -Value $eventLine -Encoding UTF8
++
++Write-Output ("Completed run: {0} ({1})" -f $RunId, $Status)
++Write-Output $runDir
+
+diff --git a/scripts/new_run.ps1 b/scripts/new_run.ps1
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/scripts/new_run.ps1
+@@ -0,0 +1,240 @@
++[CmdletBinding()]
++param(
++    [Parameter(Mandatory = $true)]
++    [string]$Objective,
++
++    [string]$Repo = (Get-Location).Path,
++
++    [string]$Branch = "",
++
++    [ValidateSet("low", "medium", "high")]
++    [string]$RiskLevel = "medium",
++
++    [string[]]$ValidationPlan = @(),
++
++    [ValidateSet("windows", "wsl", "mac")]
++    [string]$Machine = "windows",
++
++    [string]$PromptSummary = "",
++
++    [string]$StatusPath = ""
++)
++
++Set-StrictMode -Version Latest
++$ErrorActionPreference = "Stop"
++
++function New-Slug {
++    param([Parameter(Mandatory = $true)][string]$Text)
++
++    $slug = [regex]::Replace($Text.ToLowerInvariant(), "[^a-z0-9]+", "-").Trim("-")
++    if ($slug.Length -gt 48) {
++        $slug = $slug.Substring(0, 48).Trim("-")
++    }
++    if ([string]::IsNullOrWhiteSpace($slug)) {
++        return "run"
++    }
++    return $slug
++}
++
++function Get-GitBranch {
++    param([Parameter(Mandatory = $true)][string]$RepoPath)
++
++    try {
++        $branchName = & git -C $RepoPath rev-parse --abbrev-ref HEAD 2>$null | Select-Object -First 1
++        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($branchName)) {
++            return $branchName.Trim()
++        }
++    }
++    catch {
++        return ""
++    }
++    return ""
++}
++
++function ConvertTo-RepoPath {
++    param([Parameter(Mandatory = $true)][string]$Path)
++
++    if (Test-Path -LiteralPath $Path) {
++        return (Resolve-Path -LiteralPath $Path).Path
++    }
++    return $Path
++}
++
++function Normalize-List {
++    param([string[]]$Items)
++
++    $normalized = @()
++    foreach ($item in @($Items)) {
++        if ($null -eq $item) {
++            continue
++        }
++        foreach ($part in ([string]$item -split ",")) {
++            $trimmed = $part.Trim()
++            if (-not [string]::IsNullOrWhiteSpace($trimmed)) {
++                $normalized += $trimmed
++            }
++        }
++    }
++    return $normalized
++}
++
++$scriptDir = Split-Path -Parent $PSCommandPath
++$root = Split-Path -Parent $scriptDir
++$runsDir = Join-Path $root "runs"
++$metricsDir = Join-Path $root "metrics"
++New-Item -ItemType Directory -Force -Path $runsDir, $metricsDir | Out-Null
++
++$repoPath = ConvertTo-RepoPath $Repo
++if ([string]::IsNullOrWhiteSpace($Branch)) {
++    $Branch = Get-GitBranch $repoPath
++}
++if ([string]::IsNullOrWhiteSpace($Branch)) {
++    $Branch = "unknown"
++}
++
++$createdAt = Get-Date -Format "yyyy-MM-ddTHH:mm:sszzz"
++$stamp = Get-Date -Format "yyyy-MM-dd_HHmm"
++$baseRunId = "{0}_{1}" -f $stamp, (New-Slug $Objective)
++$runId = $baseRunId
++$suffix = 2
++while (Test-Path -LiteralPath (Join-Path $runsDir $runId)) {
++    $runId = "{0}-{1}" -f $baseRunId, $suffix
++    $suffix += 1
++}
++
++$runDir = Join-Path $runsDir $runId
++New-Item -ItemType Directory -Force -Path $runDir | Out-Null
++
++$validationItems = @(Normalize-List $ValidationPlan)
++$validationMarkdown = if ($validationItems.Count -gt 0) {
++    ($validationItems | ForEach-Object { "- {0}" -f $_ }) -join "`r`n"
++}
++else {
++    "- TBD"
++}
++
++$repoName = Split-Path -Leaf $repoPath
++$runData = [ordered]@{
++    run_id = $runId
++    created_at = $createdAt
++    completed_at = $null
++    machine = $Machine
++    repo = $repoPath.Replace("\", "/")
++    repo_name = $repoName
++    branch = $Branch
++    worktree = $null
++    objective = $Objective
++    user_prompt_summary = $PromptSummary
++    status_path = $StatusPath
++    risk_level = $RiskLevel
++    status = "in_progress"
++    validation_plan = $validationItems
++    files_changed = @()
++    linked_failures = @()
++    evidence_links = @()
++    reviewer_result = $null
++    final_outcome = $null
++}
++
++($runData | ConvertTo-Json -Depth 8) | Set-Content -LiteralPath (Join-Path $runDir "run.json") -Encoding UTF8
++
++$taskMarkdown = @"
++# $runId
++
++## Objective
++$Objective
++
++## User Prompt Summary
++$PromptSummary
++
++## Repo
++- Machine: $Machine
++- Path: $repoPath
++- Branch/worktree: $Branch
++- Status path: $StatusPath
++- Risk level: $RiskLevel
++
++## Validation Plan
++$validationMarkdown
++"@
++$taskMarkdown | Set-Content -LiteralPath (Join-Path $runDir "task.md") -Encoding UTF8
++
++@"
++# Plan
++
++## Approach
++- TBD
++
++## Constraints
++- Preserve surrounding code style.
++- Keep the diff scoped to the stated objective.
++- Escalate product, API, data model, security, and irreversible decisions.
++
++## Validation
++$validationMarkdown
++"@ | Set-Content -LiteralPath (Join-Path $runDir "plan.md") -Encoding UTF8
++
++@"
++# Evidence
++
++## Commands
++| Command | Result | Notes |
++|---|---|---|
++
++## Proof
++- TBD
++
++## Artifacts
++- TBD
++"@ | Set-Content -LiteralPath (Join-Path $runDir "evidence.md") -Encoding UTF8
++
++@"
++# Review
++
++## Independent Reviewer
++
++## Must-fix
++- TBD
++
++## Should-fix / Nits
++- TBD
++
++## Resolution
++- TBD
++"@ | Set-Content -LiteralPath (Join-Path $runDir "review.md") -Encoding UTF8
++
++@"
++# Final
++
++## Outcome
++TBD
++
++## What Changed
++- TBD
++
++## Validation
++- TBD
++
++## Risks
++- TBD
++
++## Follow-ups
++- TBD
++"@ | Set-Content -LiteralPath (Join-Path $runDir "final.md") -Encoding UTF8
++
++New-Item -ItemType File -Force -Path (Join-Path $runDir "commands.jsonl") | Out-Null
++New-Item -ItemType File -Force -Path (Join-Path $runDir "diff.patch") | Out-Null
++
++$event = [ordered]@{
++    type = "run_started"
++    at = $createdAt
++    run_id = $runId
++    repo = $repoPath.Replace("\", "/")
++    objective = $Objective
++    risk_level = $RiskLevel
++}
++$eventLine = $event | ConvertTo-Json -Compress -Depth 5
++Add-Content -LiteralPath (Join-Path $metricsDir "runs.jsonl") -Value $eventLine -Encoding UTF8
++
++Write-Output ("Created run: {0}" -f $runId)
++Write-Output $runDir
+
+diff --git a/scripts/summarize_metrics.ps1 b/scripts/summarize_metrics.ps1
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/scripts/summarize_metrics.ps1
+@@ -0,0 +1,148 @@
++[CmdletBinding()]
++param(
++    [switch]$Json
++)
++
++Set-StrictMode -Version Latest
++$ErrorActionPreference = "Stop"
++
++function Read-JsonFiles {
++    param(
++        [Parameter(Mandatory = $true)][string]$Directory,
++        [Parameter(Mandatory = $true)][string]$FileName
++    )
++
++    $items = @()
++    if (-not (Test-Path -LiteralPath $Directory)) {
++        return $items
++    }
++
++    Get-ChildItem -LiteralPath $Directory -Directory -ErrorAction SilentlyContinue | ForEach-Object {
++        $path = Join-Path $_.FullName $FileName
++        if (Test-Path -LiteralPath $path) {
++            try {
++                $items += (Get-Content -Raw -LiteralPath $path | ConvertFrom-Json)
++            }
++            catch {
++                Write-Warning ("Skipping invalid JSON: {0}" -f $path)
++            }
++        }
++    }
++    return $items
++}
++
++function Get-ArrayCount {
++    param($Value)
++
++    if ($null -eq $Value) {
++        return 0
++    }
++    return @($Value).Count
++}
++
++$scriptDir = Split-Path -Parent $PSCommandPath
++$root = Split-Path -Parent $scriptDir
++$runsDir = Join-Path $root "runs"
++$failuresDir = Join-Path $root "failures"
++$metricsDir = Join-Path $root "metrics"
++New-Item -ItemType Directory -Force -Path $metricsDir | Out-Null
++
++$runs = @(Read-JsonFiles -Directory $runsDir -FileName "run.json")
++$failures = @(Read-JsonFiles -Directory $failuresDir -FileName "failure.json")
++
++$runCount = $runs.Count
++$shippedRuns = @($runs | Where-Object { $_.status -in @("shipped", "complete") }).Count
++$failedRuns = @($runs | Where-Object { (Get-ArrayCount $_.linked_failures) -gt 0 }).Count
++$openFailures = @($failures | Where-Object { $_.status -eq "open" }).Count
++$regressionsAdded = @($failures | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_.regression_test) }).Count
++$runsWithEvidence = @($runs | Where-Object { (Get-ArrayCount $_.evidence_links) -gt 0 -or $_.status -in @("shipped", "complete") }).Count
++$evidenceRate = 0
++if ($runCount -gt 0) {
++    $evidenceRate = [math]::Round(($runsWithEvidence / $runCount) * 100, 1)
++}
++
++$durations = @()
++foreach ($run in $runs) {
++    if (-not [string]::IsNullOrWhiteSpace([string]$run.created_at) -and -not [string]::IsNullOrWhiteSpace([string]$run.completed_at)) {
++        try {
++            $start = [datetimeoffset]::Parse([string]$run.created_at)
++            $end = [datetimeoffset]::Parse([string]$run.completed_at)
++            $durations += ($end - $start).TotalMinutes
++        }
++        catch {
++        }
++    }
++}
++$averageMinutes = $null
++if ($durations.Count -gt 0) {
++    $averageMinutes = [math]::Round((($durations | Measure-Object -Average).Average), 1)
++}
++
++$classCounts = @{}
++foreach ($failure in $failures) {
++    $class = [string]$failure.failure_class
++    if ([string]::IsNullOrWhiteSpace($class)) {
++        $class = "unclassified"
++    }
++    if (-not $classCounts.ContainsKey($class)) {
++        $classCounts[$class] = 0
++    }
++    $classCounts[$class] += 1
++}
++
++$updatedAt = Get-Date -Format "yyyy-MM-ddTHH:mm:sszzz"
++$summary = [ordered]@{
++    updated_at = $updatedAt
++    runs_started = $runCount
++    runs_shipped = $shippedRuns
++    failed_runs = $failedRuns
++    failures_total = $failures.Count
++    failures_open = $openFailures
++    regressions_added = $regressionsAdded
++    validation_evidence_rate_percent = $evidenceRate
++    average_minutes_start_to_ship = $averageMinutes
++    failure_classes = $classCounts
++}
++
++$classMarkdown = if ($classCounts.Count -gt 0) {
++    ($classCounts.GetEnumerator() | Sort-Object Name | ForEach-Object { "| {0} | {1} |" -f $_.Name, $_.Value }) -join "`r`n"
++}
++else {
++    "| none | 0 |"
++}
++
++$avgText = if ($null -eq $averageMinutes) { "n/a" } else { "$averageMinutes" }
++
++$markdown = @"
++# Agentic Workflow Metrics
++
++Last updated: $updatedAt
++
++| Metric | Value |
++|---|---:|
++| Runs started | $runCount |
++| Runs shipped/complete | $shippedRuns |
++| Runs with linked failures | $failedRuns |
++| Failure cases | $($failures.Count) |
++| Open failures | $openFailures |
++| Regressions added | $regressionsAdded |
++| Validation evidence rate | $evidenceRate% |
++| Avg minutes start to ship | $avgText |
++
++## Failure Classes
++
++| Class | Count |
++|---|---:|
++$classMarkdown
++"@
++
++$markdown | Set-Content -LiteralPath (Join-Path $metricsDir "summary.md") -Encoding UTF8
++($summary | ConvertTo-Json -Depth 8) | Set-Content -LiteralPath (Join-Path $metricsDir "summary.json") -Encoding UTF8
++
++if ($Json) {
++    $summary | ConvertTo-Json -Depth 8
++}
++else {
++    Write-Output $markdown
++}
++
+
+diff --git a/templates/failure-case.md b/templates/failure-case.md
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/templates/failure-case.md
+@@ -0,0 +1,41 @@
++# Failure Case
++
++## Identity
++- Case ID:
++- Linked run:
++- Repo:
++- Commit/branch:
++- Failure class:
++- Severity:
++- Status:
++
++## Expected Behavior
++
++## Actual Behavior
++
++## Reproduction
++Command or manual steps:
++
++```powershell
++
++```
++
++## Evidence
++- 
++
++## Classification
++- Primary class:
++- Contributing factors:
++- Root cause:
++
++## Fix
++
++## Regression
++- Test added:
++- Command:
++- Failing-first evidence:
++- Passing evidence:
++
++## Prevention Layer
++Choose one: project test, project code, skill update, global brief update, hook update, brain note, metrics only.
++
+
+diff --git a/templates/postmortem.md b/templates/postmortem.md
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/templates/postmortem.md
+@@ -0,0 +1,25 @@
++# Postmortem
++
++## Summary
++
++## Impact
++
++## Timeline
++| Time | Event |
++|---|---|
++
++## Root Cause
++
++## What Caught It
++
++## What Missed It
++
++## Durable Improvement
++- Layer:
++- Change:
++- Linked failure:
++- Verification:
++
++## Follow-ups
++- 
++
+
+diff --git a/templates/run-record.md b/templates/run-record.md
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/templates/run-record.md
+@@ -0,0 +1,39 @@
++# Run Record
++
++## Identity
++- Run ID:
++- Created:
++- Machine:
++- Repo:
++- Branch/worktree:
++- Risk level:
++- Status:
++
++## Objective
++
++## User Prompt Summary
++
++## Validation Plan
++- 
++
++## Plan
++
++## Files Changed
++- 
++
++## Commands Run
++Commands should also be appended to `commands.jsonl` when the run is active.
++
++| Time | Command | Result | Notes |
++|---|---|---|---|
++
++## Evidence Links
++- 
++
++## Reviewer Result
++
++## Linked Failures
++- 
++
++## Final Outcome
++
+
+diff --git a/templates/ship-report.md b/templates/ship-report.md
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/templates/ship-report.md
+@@ -0,0 +1,29 @@
++# Ship Report
++
++## Original Intent
++
++## What Changed
++- 
++
++## Validation Performed
++| Command | Result | Evidence |
++|---|---|---|
++
++## Evidence
++- 
++
++## Independent Review
++### Must-fix
++- 
++
++### Should-fix / Nits
++- 
++
++## Risks
++- 
++
++## Follow-ups
++- 
++
++## Final Outcome
++

@@ -1,0 +1,39 @@
+{
+  "run_id": "2026-07-12_1617_add-a-price-faq-intent-to-the-china-garden-call",
+  "created_at": "2026-07-12T16:17:23-04:00",
+  "completed_at": "2026-07-12T16:58:25-04:00",
+  "machine": "windows",
+  "repo": "/Users/kerryshi/Projects/china-garden",
+  "repo_name": "china-garden",
+  "branch": "master",
+  "worktree": null,
+  "objective": "Add a price-FAQ intent to the china-garden call agent. Callers asking the price of a menu item ('how much is General Tso's Chicken', 'what does the egg roll cost') currently get the generic fallback; they should get the item's price from data/menu.json. Follow the existing RuleBackend intent-pattern conventions in src/china_garden; handle unknown/ambiguous items gracefully (fallback or clarify, never invent a price); do not change the order/read-back flow. Validation: .venv/bin/pytest must stay green (92 baseline) and .venv/bin/ruff check . clean; add regression tests that fail before the fix and pass after.",
+  "user_prompt_summary": "",
+  "status_path": "",
+  "risk_level": "low",
+  "agent": {
+    "agent_id": "claude-code",
+    "agent_role": "executor",
+    "surface": "harness",
+    "model": "sonnet",
+    "adapter_version": "v2-harness"
+  },
+  "status": "complete",
+  "validation_plan": [
+    ".venv/bin/pytest",
+    ".venv/bin/ruff check .",
+    "printf 'how much is the general tso\\nwhat does the wonton soup cost\\nhow much is the pepperoni pizza\\nquit\\n' | .venv/bin/python -m china_garden.cli"
+  ],
+  "files_changed": [
+    "src/china_garden/backends.py",
+    "src/china_garden/menu.py",
+    "src/china_garden/dialog.py",
+    "tests/test_price_faq.py"
+  ],
+  "linked_failures": [],
+  "evidence_links": [
+    "evidence.md"
+  ],
+  "reviewer_result": "review stage: see review.md",
+  "final_outcome": "pipeline feature completed (8 stages)"
+}

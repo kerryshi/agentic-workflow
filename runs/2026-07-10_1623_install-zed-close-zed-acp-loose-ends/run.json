@@ -1,0 +1,38 @@
+{
+    "run_id":  "2026-07-10_1623_install-zed-close-zed-acp-loose-ends",
+    "created_at":  "2026-07-10T16:23:16-04:00",
+    "completed_at":  "2026-07-10T16:31:12-04:00",
+    "machine":  "windows",
+    "repo":  "C:/Users/PC/zed-acp-agents",
+    "repo_name":  "zed-acp-agents",
+    "branch":  "master",
+    "worktree":  null,
+    "objective":  "Install Zed, close zed-acp loose ends (redaction breadth, integration smoke, spike cleanup), then run a real Claude Code turn end-to-end through the system",
+    "user_prompt_summary":  "install zed, tie all loose ends, then use the system ourselves (claude code)",
+    "status_path":  "",
+    "risk_level":  "medium",
+    "agent":  {
+                  "agent_id":  "claude-code",
+                  "agent_role":  "executor",
+                  "surface":  "claude-code-cli",
+                  "model":  "claude-fable-5",
+                  "adapter_version":  "v1"
+              },
+    "status":  "shipped",
+    "validation_plan":  [
+                            "Zed installed and launches; agent entry present in Zed settings",
+                            "npm run test:all green incl. broadened redaction tests",
+                            "one real end-to-end Code turn produces a run record with evidence"
+                        ],
+    "files_changed":  [
+                          "STATUS.md"
+                      ],
+    "linked_failures":  [
+
+                        ],
+    "evidence_links":  [
+
+                       ],
+    "reviewer_result":  "validated by execution: 9/9 unit tests, integration smoke OK, live conformance turn end_turn with correct fix and 2/2 tests",
+    "final_outcome":  "Zed 1.10.1 installed (winget, Kerry-approved) and IDE launched; agent registered in Zed settings; loose ends closed (redaction breadth + tests, gated test:integration proving real PS lifecycle, old spike deleted, mac mirror force-synced off pre-scrub history); first REAL end-to-end Code turn passed as run 2026-07-10_1628 (zed-acp agent, sonnet executor, reviewer denied Bash = allowlist fail-closed live)"
+}

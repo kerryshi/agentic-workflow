@@ -1,0 +1,14 @@
+diff --git a/stats.js b/stats.js
+index 0be2819..6fa8557 100644
+--- a/stats.js
++++ b/stats.js
+@@ -1,4 +1,8 @@
+ export function median(values) {
+   const sorted = [...values].sort((a, b) => a - b);
+-  return sorted[Math.floor(sorted.length / 2)];
++  const mid = Math.floor(sorted.length / 2);
++  if (sorted.length % 2 === 0) {
++    return (sorted[mid - 1] + sorted[mid]) / 2;
++  }
++  return sorted[mid];
+ }

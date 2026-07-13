@@ -1,0 +1,1 @@
+{"at":"2026-07-09T10:38:02-04:00","command":"powershell -File tests/run_tests.ps1 (x10)","result":"32 passed, 0 failed, exit 0","note":"R14 deterministically green after Get-RepoDiff fix"}

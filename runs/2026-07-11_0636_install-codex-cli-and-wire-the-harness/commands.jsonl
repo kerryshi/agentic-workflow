@@ -1,0 +1,7 @@
+{"at":"2026-07-11T06:47:34-04:00","command":"npm i -g @openai/codex","result":"codex-cli 0.144.1; codex login status exit 0 (auth reused from Codex Desktop)","note":""}
+{"at":"2026-07-11T06:47:34-04:00","command":"node driver-conformance.mjs (dist CodexDriver, sandboxed)","result":"available()=true; run() ok:true, parsed {driver:codex,status:LIVE}, tokens 13874/14 (9984 cached), 5494ms, exit 0","note":""}
+{"at":"2026-07-11T06:47:34-04:00","command":"npm run build; npx vitest run (harness)","result":"57/57 passed (was 47: +9 codex-driver, +1 engine cross-agent model regression); tsc clean","note":"count corrected 48->47 by the 2026-07-11 review (finding: self-contradictory baseline)"}
+{"at":"2026-07-11T06:47:34-04:00","command":"tests\\run_tests.ps1","result":"64 passed, 0 failed (v1 PS harness untouched)","note":""}
+{"at":"2026-07-11T07:17:01-04:00","command":"3-lens adversarial review workflow (16 agents) + fix wave","result":"13/13 findings confirmed and addressed; CASE-0016 (spawn EINVAL rejection) + CASE-0017 (timeout strand) captured and resolved with regressions","note":""}
+{"at":"2026-07-11T07:17:01-04:00","command":"npm run build; npx vitest run (post-fixes)","result":"68/68 passed (was 47 at HEAD: +16 codex-driver, +4 proc, +1 engine regression); tsc clean","note":""}
+{"at":"2026-07-11T07:17:01-04:00","command":"node driver-conformance.mjs (re-run on rebuilt dist, --sandbox read-only path)","result":"available()=true; run() ok:true, parsed stage JSON, tokens 13874/14 (9984 cached), 7412ms, exit 0","note":""}

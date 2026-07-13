@@ -1,0 +1,45 @@
+{
+    "run_id":  "2026-07-08_2113_review-v3-prd-and-mvp-fix-defects-flush-out-to-v",
+    "created_at":  "2026-07-08T21:13:02-04:00",
+    "completed_at":  "2026-07-08T22:30:32-04:00",
+    "machine":  "windows",
+    "repo":  "C:/Users/PC/agentic-workflow",
+    "repo_name":  "agentic-workflow",
+    "branch":  "master",
+    "worktree":  null,
+    "objective":  "Review v3 PRD and MVP, fix defects, flush out to v1",
+    "user_prompt_summary":  "Kerry: review the v3 PRD, make needed changes; review the MVP code; flush this out - I want a v1 now",
+    "status_path":  "HANDOFF.md",
+    "risk_level":  "medium",
+    "status":  "shipped",
+    "validation_plan":  [
+                            "tests\\run_tests.ps1 (new harness)",
+                            "summarize_metrics.ps1 regenerates cleanly",
+                            "fresh reviewer pass"
+                        ],
+    "files_changed":  [
+                          ".gitignore",
+                          "docs/",
+                          "failures/",
+                          "HANDOFF.md",
+                          "metrics/",
+                          "PORTFOLIO.md",
+                          "PRD.md",
+                          "README.md",
+                          "runs/",
+                          "scripts/",
+                          "templates/",
+                          "tests/",
+                          "USAGE.md"
+                      ],
+    "linked_failures":  [
+                            "CASE-0002",
+                            "CASE-0003"
+                        ],
+    "evidence_links":  [
+                           "tests/run_tests.ps1 (32/32 green)",
+                           "runs/2026-07-08_2113_review-v3-prd-and-mvp-fix-defects-flush-out-to-v/final.md"
+                       ],
+    "reviewer_result":  "Fresh reviewer subagent (drove scripts on PS 5.1) found 1 MUST-FIX (non-ASCII untracked filename dropped all untracked files from diff.patch) + 1 SHOULD-FIX (CRLF fidelity) + 4 nits. All fixed; MUST-FIX regression-tested (R14). Verified clean after fixes.",
+    "final_outcome":  "Reviewed the v3 PRD and MVP; hardened the MVP into v1. Fixed ~20 confirmed defects across the four PS scripts, added a shared _common module plus update_run/resolve_failure, a 32-check regression harness, wired /ship, reconciled the PRD, and cleaned MVP data pollution."
+}

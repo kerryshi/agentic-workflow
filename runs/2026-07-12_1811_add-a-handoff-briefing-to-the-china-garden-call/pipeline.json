@@ -1,0 +1,237 @@
+{
+  "schema_version": 2,
+  "review_round": 1,
+  "run_id": "2026-07-12_1811_add-a-handoff-briefing-to-the-china-garden-call",
+  "template": "feature",
+  "repo": "/Users/kerryshi/Projects/china-garden",
+  "task": "Add a handoff briefing to the china-garden call agent. When the dialog hands off to a human (caller says 'person', ingredient/allergen questions, etc.) and the session has an order in progress, the HANDOFF reply currently carries no order context - the human picking up is blind. Brief them: expose a compact order-so-far summary (items, qty, size, notes) at handoff time, designed so the future telephony layer can surface it to the human (e.g. a structured field on the reply or session, plus a natural caller-facing line confirming the order is saved). Do not change non-handoff flows; never leak internal notation to the caller. Validation: .venv/bin/pytest stays green (115 baseline) and .venv/bin/ruff check . clean; add regression tests that fail before the change.",
+  "answers": null,
+  "builder": "claude",
+  "reviewer": "claude",
+  "model": "sonnet",
+  "skip_permissions": true,
+  "isolated": true,
+  "agent_verify": false,
+  "risk_level": "low",
+  "full_rereview": false,
+  "stage_budget_usd": null,
+  "current_stage": 6,
+  "validation_commands": [
+    ".venv/bin/pytest -q",
+    ".venv/bin/ruff check .",
+    "printf 'two egg rolls\\nis there peanut oil in that\\n' | .venv/bin/python -m china_garden.cli",
+    "printf 'is there peanut oil in the lo mein\\n' | .venv/bin/python -m china_garden.cli"
+  ],
+  "files_changed": [
+    "src/china_garden/order.py",
+    "src/china_garden/dialog.py",
+    "tests/test_handoff_briefing.py"
+  ],
+  "fix_cycles": 0,
+  "last_must_fix": null,
+  "stages": [
+    {
+      "name": "grill",
+      "status": "done",
+      "attempts": [
+        {
+          "status": "done",
+          "agent": "claude",
+          "model": "sonnet",
+          "resumed": false,
+          "tokens": {
+            "input": 12,
+            "output": 2471,
+            "cache_read": 197367,
+            "cache_creation": 15978
+          },
+          "cost_usd": 0.1938061,
+          "duration_ms": 36514,
+          "num_turns": 6,
+          "started_at": "2026-07-12T18:11:19-04:00",
+          "ended_at": "2026-07-12T18:11:57-04:00",
+          "session_id": "2d186ded-c5e5-4d6a-9029-20d266c59be5"
+        }
+      ],
+      "artifacts": [],
+      "agent": "claude",
+      "model": "sonnet",
+      "started_at": "2026-07-12T18:11:19-04:00",
+      "tokens": {
+        "input": 12,
+        "output": 2471,
+        "cache_read": 197367,
+        "cache_creation": 15978
+      },
+      "cost_usd": 0.1938061,
+      "duration_ms": 36514,
+      "num_turns": 6,
+      "ended_at": "2026-07-12T18:11:57-04:00"
+    },
+    {
+      "name": "plan",
+      "status": "done",
+      "attempts": [
+        {
+          "status": "done",
+          "agent": "claude",
+          "model": "sonnet",
+          "resumed": true,
+          "tokens": {
+            "input": 18,
+            "output": 8124,
+            "cache_read": 425327,
+            "cache_creation": 16036
+          },
+          "cost_usd": 0.34572810000000004,
+          "duration_ms": 93866,
+          "num_turns": 9,
+          "started_at": "2026-07-12T18:11:57-04:00",
+          "ended_at": "2026-07-12T18:13:32-04:00",
+          "session_id": "2d186ded-c5e5-4d6a-9029-20d266c59be5"
+        }
+      ],
+      "artifacts": [
+        "plan.md"
+      ],
+      "agent": "claude",
+      "model": "sonnet",
+      "started_at": "2026-07-12T18:11:57-04:00",
+      "tokens": {
+        "input": 18,
+        "output": 8124,
+        "cache_read": 425327,
+        "cache_creation": 16036
+      },
+      "cost_usd": 0.34572810000000004,
+      "duration_ms": 93866,
+      "num_turns": 9,
+      "ended_at": "2026-07-12T18:13:32-04:00"
+    },
+    {
+      "name": "approval",
+      "status": "done",
+      "attempts": [],
+      "artifacts": [],
+      "ended_at": "2026-07-12T18:14:01-04:00"
+    },
+    {
+      "name": "build",
+      "status": "done",
+      "attempts": [
+        {
+          "status": "done",
+          "agent": "claude",
+          "model": "sonnet",
+          "resumed": true,
+          "tokens": {
+            "input": 40,
+            "output": 6689,
+            "cache_read": 1360188,
+            "cache_creation": 19106
+          },
+          "cost_usd": 0.6231473999999998,
+          "duration_ms": 87122,
+          "num_turns": 20,
+          "started_at": "2026-07-12T18:14:01-04:00",
+          "ended_at": "2026-07-12T18:15:29-04:00",
+          "session_id": "2d186ded-c5e5-4d6a-9029-20d266c59be5"
+        }
+      ],
+      "artifacts": [],
+      "agent": "claude",
+      "model": "sonnet",
+      "started_at": "2026-07-12T18:14:01-04:00",
+      "tokens": {
+        "input": 40,
+        "output": 6689,
+        "cache_read": 1360188,
+        "cache_creation": 19106
+      },
+      "cost_usd": 0.6231473999999998,
+      "duration_ms": 87122,
+      "num_turns": 20,
+      "ended_at": "2026-07-12T18:15:29-04:00"
+    },
+    {
+      "name": "review",
+      "status": "done",
+      "attempts": [
+        {
+          "status": "done",
+          "agent": "claude",
+          "model": "sonnet",
+          "resumed": false,
+          "tokens": {
+            "input": 18,
+            "output": 5139,
+            "cache_read": 393056,
+            "cache_creation": 28581
+          },
+          "cost_usd": 0.37199379999999993,
+          "duration_ms": 66040,
+          "num_turns": 12,
+          "started_at": "2026-07-12T18:15:29-04:00",
+          "ended_at": "2026-07-12T18:16:36-04:00",
+          "session_id": "b1299719-6fd0-4dbd-90e5-25e7cbcaef5e",
+          "review": {
+            "verdict": "approve",
+            "must_fix": [],
+            "should_fix": [],
+            "round": 1
+          }
+        }
+      ],
+      "artifacts": [
+        "review-1.diff",
+        "review.md",
+        "review-1.md"
+      ],
+      "agent": "claude",
+      "model": "sonnet",
+      "started_at": "2026-07-12T18:15:29-04:00",
+      "tokens": {
+        "input": 18,
+        "output": 5139,
+        "cache_read": 393056,
+        "cache_creation": 28581
+      },
+      "cost_usd": 0.37199379999999993,
+      "duration_ms": 66040,
+      "num_turns": 12,
+      "ended_at": "2026-07-12T18:16:36-04:00"
+    },
+    {
+      "name": "verify",
+      "status": "done",
+      "attempts": [
+        {
+          "status": "done",
+          "agent": "harness",
+          "tokens": {
+            "input": 0,
+            "output": 0
+          },
+          "cost_usd": 0,
+          "num_turns": 0,
+          "started_at": "2026-07-12T18:16:36-04:00",
+          "duration_ms": 297,
+          "ended_at": "2026-07-12T18:16:36-04:00"
+        }
+      ],
+      "artifacts": [
+        "evidence.md"
+      ],
+      "started_at": "2026-07-12T18:16:36-04:00",
+      "tokens": {
+        "input": 0,
+        "output": 0
+      },
+      "cost_usd": 0,
+      "duration_ms": 297,
+      "num_turns": 0,
+      "ended_at": "2026-07-12T18:16:36-04:00"
+    }
+  ],
+  "builder_session_id": "2d186ded-c5e5-4d6a-9029-20d266c59be5"
+}

@@ -1,0 +1,202 @@
+diff --git a/HANDOFF.md b/HANDOFF.md
+index 6690e62..55902d6 100644
+--- a/HANDOFF.md
++++ b/HANDOFF.md
+@@ -1,11 +1,12 @@
+ # HANDOFF — Agentic Coding Workflow revamp
+ 
+-**For:** the next Claude Code instance (or Kerry) continuing this revamp.
++**For:** the next agent instance (Claude Code, Codex, or another adapter — or Kerry) continuing
++this revamp.
+ **Read first:** this file, then `PRD.md` for the v3 reliability-layer scope. `PLAN.md` is the frozen
+ v2 plan.
+-**Last updated:** 2026-07-09 (Agentic Workflow **v1** hardened to fully-working; adapter contract
+-added so Claude Code, Codex, and local/open-source agents can plug into the same run/evidence system.
+-See item H).
++**Last updated:** 2026-07-10 (direction decided: agents are PEERS — Codex and Claude Code alike,
++local models in scope, roles per run and never fixed per agent; item H committed after independent
++review; Codex attribution backfilled. See items H–I).
+ 
+ ---
+ 
+@@ -30,6 +31,9 @@ adapter contract on real Claude Code/Codex/local-helper tasks.
+ - **Local/open-source MODEL layer: DROPPED.** Cloud Claude runs everything — the coding loop,
+   review, and validation. Ollama is not in the loop. (Open-source *tools/plugins* are still in
+   scope; only local LLMs were cut.) `nomic-embed-text` etc. sit unused on disk; no action.
++  *(SUPERSEDED 2026-07-10, Kerry: the workflow is agent-agnostic. Claude Code, Codex, and local
++  models are PEER agents under `adapters/adapter-contract.md`; agents get roles per run, never
++  fixed per agent; all model types are in scope. See item I.)*
+ - **Permissions: full-auto KEPT** (`skipDangerousModePermissionPrompt: true`). The human still
+   gates outward-facing / irreversible steps by judgment (e.g. the GitHub push below).
+   *(Superseded 2026-07-05: Kerry removed the flag; 2026-07-07 Kerry re-enabled it himself,
+@@ -235,6 +239,23 @@ agent-agnostic reliability control plane.
+   `2026-07-09_1953_independent-review-of-the-v1` run is shipped with evidence; metrics show 9/9
+   failures resolved and 0 open.
+ 
++**I. Direction: agents are peers; item H landed; attribution backfilled (2026-07-10)**
++- Kerry's decision: this is a GENERAL agentic workflow — Codex and Claude Code are peer agents,
++  local models included; agents get roles per run, roles stay loose, never fixed per agent.
++  Supersedes "Claude does the work"/cloud-only (2026-06-27). Global brief (`~/.claude/CLAUDE.md`)
++  updated to match ("Agents are peers"); auto-memory and brain captures updated the same day.
++- Item H committed as `d4a0a0a` after a fresh independent review: **no MUST-FIX**, harness verified
++  **64/64 twice**, CASE-0008/0009 fixes driven against the real scripts. Review corrections folded
++  into the commit: stale 32-check/3-case counts (HANDOFF/PRD), stale evidence-rate sentence,
++  adapters tree missing `zed-acp.md`, CASE-0008 regression-test naming.
++- Provenance made explicit: the 2026-07-08 v3 MVP build (run 1545) and most of the item H wave ran
++  in Codex Desktop threads, previously unattributed. `agent` blocks backfilled on runs 1545 and
++  1953 (marked as inferred backfills); `adapters/codex.md` now carries the history.
++- Codex also left a working Zed/ACP adapter spike at `Documents\codex\zed-acp-agents` (untracked
++  Node project, default executor Claude Code, 6/6 tests, blocked on Zed install approval) — fold
++  into the repo or park: Kerry's call.
++- Recorded as `runs/2026-07-10_0140_land-item-h-adapter-wave-and-generalize/`.
++
+ ### How the Kun (ex-Meta L8) workflow maps onto this system
+ | Kun's tool | Simulated here via |
+ |---|---|
+@@ -327,8 +348,9 @@ remembered" was exercised for real by N3; metrics (Phase 4) remain untouched.
+   additions as swaps, not growth).
+ 
+ ## Open decisions for Kerry
+-- **Adapter rollout:** use Claude Code as the first concrete adapter; add Codex/local model runs only
+-  when they produce useful evidence under `adapters/adapter-contract.md`.
++- **Adapter rollout: DECIDED 2026-07-10** — agents are peers (no first/second adapter); Codex and
++  Claude Code are both active, local models in scope. Evidence still gates trust: a new agent or
++  model earns higher-risk roles by producing useful records under `adapters/adapter-contract.md`.
+ - **`/ship` is now a global-config change (item F):** `~/.claude/skills/ship/SKILL.md` gained the
+   v3 run-record step. Committed to the agentic-workflow repo only as documentation; the live
+   `.claude` config edit follows the usual per-request push policy — review + push when ready.
+diff --git a/PLAN.md b/PLAN.md
+index 5052722..5b1bfd0 100644
+--- a/PLAN.md
++++ b/PLAN.md
+@@ -3,9 +3,11 @@
+ > **⚠ Frozen original (banner added 2026-07-02).** This is the v2 plan as written; where it conflicts
+ > with `HANDOFF.md`, HANDOFF wins. Known supersessions: the local-model layer was **DROPPED
+ > 2026-06-27** (cloud Claude runs everything — Part 2, Phase 1, and Phase 2's OLLAMA/ccl-remote items
+-> are dead); `/commit` + `/explain` were removed; `~/.claude` reaches the Mac via `sync-to-mac.sh`,
+-> not a cloned dotfiles repo; `/gnhf` was built in Phase 0, so Phase 3's remaining scope is evidence
+-> artifacts + habitual /review.
++> are dead), then the drop itself was **SUPERSEDED 2026-07-10: agents are peers** (Claude Code,
++> Codex, local models — one adapter contract, roles per run; see HANDOFF item I); `/commit` +
++> `/explain` were removed; `~/.claude` reaches the Mac via `sync-to-mac.sh`, not a cloned dotfiles
++> repo; `/gnhf` was built in Phase 0, so Phase 3's remaining scope is evidence artifacts + habitual
++> /review.
+ 
+ **The thesis, decided:** Claude is the main coding agent. Local models exist only to reduce waste on bounded tasks. The desktop is a remote dev box, the Mac is the portable interface, Tailscale connects them — and **the real system is your Claude Code configuration: the brief, the skills, the subagents, and the validation hooks.** Models change; that configuration is the compounding asset.
+ 
+diff --git a/PORTFOLIO.md b/PORTFOLIO.md
+index c4c9ff2..2b31133 100644
+--- a/PORTFOLIO.md
++++ b/PORTFOLIO.md
+@@ -85,8 +85,9 @@ To avoid collisions:
+   5. Decide the nightly `/schedule` routine once there's usage data (currently OFF).
+   6. Keep the skill set small/high-signal (9 = top of healthy band; additions are swaps, not growth).
+ - **State:** Phase 0 built + hardened; v3 reliability layer at **v1**, hardened to fully-working
+-  2026-07-09 (R14 diff-capture bug fixed → **32-check harness deterministically green, 10/10**; 3
+-  failure cases seeded + resolved; `/ship` + `/review` wired); Mac is a full second workspace;
++  2026-07-09 (R14 diff-capture bug fixed → **64-check harness deterministically green**; 9 failure
++  cases seeded + resolved; `/ship` + `/review` wired); agent-agnostic since 2026-07-10 — Claude
++  Code, Codex, and local models are peer adapters (HANDOFF item I); Mac is a full second workspace;
+   bidirectional sync works. **Live detail: `HANDOFF.md` (this repo).**
+ 
+ ### 3.2 china-garden — restaurant call agent (the end-to-end proof task)
+diff --git a/PRD.md b/PRD.md
+index e54f3a1..26b12a3 100644
+--- a/PRD.md
++++ b/PRD.md
+@@ -425,8 +425,9 @@ open-source agent. Each adapter normalizes the same minimum fields:
+ - `result`: shipped, blocked, reverted, failed, or deferred
+ - `verification`: commands, checks, screenshots, tests, or user-confirmed external state
+ 
+-Claude Code is the first adapter because it is the active coding-agent workflow. Codex and
+-open-source agents plug into the same contract once their artifacts are useful.
++Adapters are peers under this contract; no agent owns a role, and roles are assigned per run.
++Claude Code was documented first for historical reasons; Codex is likewise active, and
++local/open-source agents plug into the same contract as their artifacts prove useful.
+ 
+ ### 3.8 Core Workflows
+ 
+@@ -909,7 +910,7 @@ Mitigation:
+ Mitigation:
+ 
+ - no custom executor in MVP
+-- use Claude Code and existing skills as the first adapter
++- start from the agents already in use (Claude Code and its skills, Codex) rather than building new ones
+ - keep the core run/failure/evidence format agent-agnostic
+ - build recordkeeping first
+ 
+diff --git a/USAGE.md b/USAGE.md
+index a73b372..41573c9 100644
+--- a/USAGE.md
++++ b/USAGE.md
+@@ -8,9 +8,10 @@ VS Code for diffs/debugging/hand-edits and the terminal as normal.
+ a run record before major edits, complete it after `/ship`, and capture serious failures as eval
+ cases. See `docs/workflows.md`.
+ 
+-**Adapter update:** the reliability layer is no longer Claude-only. Claude Code is the first adapter,
+-but `scripts\new_run.ps1` can also record `-AgentId codex`, `-AgentId local-model`, or another
+-adapter that follows `adapters/adapter-contract.md`.
++**Adapter update:** the reliability layer is agent-agnostic — agents are peers, and no agent owns
++a role. `scripts\new_run.ps1` records `-AgentId claude-code`, `-AgentId codex`,
++`-AgentId local-model`, or any other adapter that follows `adapters/adapter-contract.md`; the role
++is set per run with `-AgentRole`.
+ 
+ ---
+ 
+diff --git a/adapters/codex.md b/adapters/codex.md
+index a378a26..b8fd7ff 100644
+--- a/adapters/codex.md
++++ b/adapters/codex.md
+@@ -1,6 +1,6 @@
+ # Codex Adapter
+ 
+-Status: planned / usable manually
++Status: active peer agent
+ 
+ Codex can use the same reliability layer by starting a run record, preserving evidence, and closing
+ with a ship report. Codex should not be treated as a separate MVP; it is another adapter into the
+@@ -25,3 +25,11 @@ same run/failure/evidence system.
+ - Record important commands through `update_run.ps1`.
+ - Complete through `complete_run.ps1` after validation.
+ - Link serious misses to `capture_failure.ps1`.
++
++## History
++
++Codex work predates this adapter doc: the v3 MVP build
++(`runs/2026-07-08_1545_build-agentic-workflow-v3-mvp`), most of the item H adapter wave
++(2026-07-09 evening Codex Desktop threads), and the AgentOS OAuth revocation ran without
++attribution. The run records were backfilled on 2026-07-10 (marked inferred); from here on,
++attribution is recorded at run start — CASE-0008's regressions guard the defaults.
+diff --git a/adapters/local-models.md b/adapters/local-models.md
+index 065fcbe..5952473 100644
+--- a/adapters/local-models.md
++++ b/adapters/local-models.md
+@@ -1,6 +1,6 @@
+ # Local / Open-Source Model Adapter
+ 
+-Status: helper first, executor later
++Status: peer adapter — any role, evidence-gated (start with helper roles to build evidence)
+ 
+ Local models should plug into the reliability layer as helpers before they become autonomous coding
+ executors. Good first roles:
+diff --git a/docs/ai-coding-workflow.md b/docs/ai-coding-workflow.md
+index 1ceadb1..453fffb 100644
+--- a/docs/ai-coding-workflow.md
++++ b/docs/ai-coding-workflow.md
+@@ -45,9 +45,13 @@ what happened.
+ 
+ ## Agent Selection
+ 
+-- Use `claude-code` for primary complex coding work.
+-- Use `codex` when the work is already in a Codex thread or benefits from Codex's local tooling.
+-- Use `local-model` for cheap helper roles first: summarization, classification, tagging, metrics.
++Agents are peers: no agent owns a role. Any adapter can plan, build, review, or verify; the role is
++assigned per run (`-AgentRole`), never fixed per agent. Pick the agent for a run by fit, cost, and
++availability.
++
++- `claude-code`, `codex`, and local/open-source agents plug in through the same contract.
++- Helper roles (summarization, classification, tagging, metrics) are a cheap way to bring a new
++  agent or model online and build evidence before it takes higher-risk executor runs.
+ - Add new agents by documenting them under `adapters/` and using the adapter contract.
+ 
+ ## Done Means

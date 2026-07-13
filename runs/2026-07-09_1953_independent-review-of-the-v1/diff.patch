@@ -1,0 +1,2783 @@
+diff --git a/HANDOFF.md b/HANDOFF.md
+index 0022c11..9b507de 100644
+--- a/HANDOFF.md
++++ b/HANDOFF.md
+@@ -3,9 +3,9 @@
+ **For:** the next Claude Code instance (or Kerry) continuing this revamp.
+ **Read first:** this file, then `PRD.md` for the v3 reliability-layer scope. `PLAN.md` is the frozen
+ v2 plan.
+-**Last updated:** 2026-07-09 (Agentic Workflow **v1** hardened to fully-working — R14 diff-capture
+-bug fixed, **32-check harness deterministically green (10/10)**, 3 failure cases seeded + resolved,
+-`/review` wired. See item G).
++**Last updated:** 2026-07-09 (Agentic Workflow **v1** hardened to fully-working; adapter contract
++added so Claude Code, Codex, and local/open-source agents can plug into the same run/evidence system.
++See item H).
+ 
+ ---
+ 
+@@ -22,8 +22,8 @@ deterministically green (10/10 runs)**, the failure-capture loop was exercised e
+ cases seeded + resolved), and `/review` was wired to capture serious findings. **The Mac is now a
+ full second workspace (2026-07-02, item C below)** — config, memory, and projects sync from the
+ desktop over Tailscale, no GitHub needed.
+-Remaining work: accumulate real (non-dogfood) run history toward the PRD's 10+ target, and close the
+-one Phase 0 credential item (revoke the retired AgentOS OAuth cred — outward-facing, needs Kerry).
++Remaining work: accumulate real (non-dogfood) run history toward the PRD's 10+ target and use the
++adapter contract on real Claude Code/Codex/local-helper tasks.
+ 
+ ### Decisions locked (2026-06-27)
+ - **Local/open-source MODEL layer: DROPPED.** Cloud Claude runs everything — the coding loop,
+@@ -210,8 +210,22 @@ state assessment surfaced (the harness was intermittently red; the failure half
+ - **Docs reconciled:** the stale "31/31 green" claim corrected to "32 checks" across HANDOFF/PORTFOLIO/
+   PRD; PRD Phase 2 moved partial→done.
+ - Recorded as a real run: `runs/2026-07-09_1034_harden-agentic-workflow-v1-to-fully/`.
+-- **Still deferred (needs Kerry):** revoke the retired AgentOS OAuth credential (Phase 0 OPEN,
+-  outward-facing); extend `/distill` for failure lessons (Phase 3); accumulate 10+ real run records.
++- **Closed 2026-07-09:** retired AgentOS OAuth credential debt (`agentos-497501`) was revoked/removed
++  and documented; Kerry confirmed the remaining Google-side surface was gone.
++- **Still deferred:** extend `/distill` for failure lessons (Phase 3); accumulate 10+ real run records.
++
++**H. Agent adapter contract added (2026-07-09)** — turns v1 from a Claude-only wrapper into an
++agent-agnostic reliability control plane.
++- Added `adapters/adapter-contract.md`, `adapters/claude-code.md`, `adapters/codex.md`,
++  `adapters/local-models.md`.
++- Added `docs/ai-coding-workflow.md` with the general frame → context → plan → build → review →
++  verify → ship → learn loop.
++- `scripts/new_run.ps1` now records `agent.agent_id`, `agent.agent_role`, `agent.surface`,
++  `agent.model`, and `agent.adapter_version` in `run.json`, plus an Agent Adapter section in
++  `task.md`.
++- Tests now assert default `claude-code` metadata and explicit `codex` metadata. Adapter smoke
++  passed. Full harness run in this session was 62 passed / 2 failed: existing R21/R22 git UTF-8
++  decoding checks for non-ASCII branch/file names still need a shared git-helper fix.
+ 
+ ### How the Kun (ex-Meta L8) workflow maps onto this system
+ | Kun's tool | Simulated here via |
+@@ -304,9 +318,8 @@ remembered" was exercised for real by N3; metrics (Phase 4) remain untouched.
+   additions as swaps, not growth).
+ 
+ ## Open decisions for Kerry
+-- **Phase 0 credential debt (OPEN):** the retired AgentOS OAuth credential (`agentos-497501`,
+-  per the `agentos-gmail-auth` memory) was never revoked. Revoking is outward-facing, so it's
+-  left for you. Until closed, PRD Phase 0's "no retired credential debt" done-criterion is unmet.
++- **Adapter rollout:** use Claude Code as the first concrete adapter; add Codex/local model runs only
++  when they produce useful evidence under `adapters/adapter-contract.md`.
+ - **`/ship` is now a global-config change (item F):** `~/.claude/skills/ship/SKILL.md` gained the
+   v3 run-record step. Committed to the agentic-workflow repo only as documentation; the live
+   `.claude` config edit follows the usual per-request push policy — review + push when ready.
+diff --git a/PRD.md b/PRD.md
+index 3e6fd74..ee65a93 100644
+--- a/PRD.md
++++ b/PRD.md
+@@ -203,7 +203,8 @@ Carry forward patterns only:
+ 
+ ## 2. Product Decision
+ 
+-Build Agentic Workflow v3 as a reliability layer around the current Claude Code workflow.
++Build Agentic Workflow v3 as an agent-agnostic reliability layer, with Claude Code as the first
++supported adapter.
+ 
+ Do not build a Zed-native ACP platform first.
+ Do not build a custom coding harness first.
+@@ -212,9 +213,9 @@ Do not build a fleet first.
+ 
+ The v3 product is:
+ 
+-> A local-first coding-agent reliability workflow that records each meaningful coding run, captures
+-> failures as replayable eval cases, requires evidence before shipping, and turns repeated failures
+-> into changes to tests, skills, hooks, or workflow rules.
++> A local-first, agent-agnostic coding-agent reliability workflow that records each meaningful coding
++> run, captures failures as replayable eval cases, requires evidence before shipping, and turns
++> repeated failures into changes to tests, skills, hooks, adapter contracts, or workflow rules.
+ 
+ ## 3. Product Requirements Document
+ 
+@@ -225,7 +226,8 @@ Agentic Workflow v3: Reliability Layer
+ ### 3.2 Problem
+ 
+ The current system is strong at performing coding work with Claude Code, but weak at accumulating
+-structured evidence that it is getting more reliable.
++structured evidence that it is getting more reliable. The reliability layer should preserve Claude
++Code as the strongest current executor while avoiding a hard dependency on any one agent surface.
+ 
+ Failures currently become:
+ 
+@@ -250,12 +252,14 @@ They should become:
+ 4. Make failure analysis update the right layer: test, skill, hook, brief, repo code, or project docs.
+ 5. Support Windows desktop, WSL2 lab, and Mac workspace without source-of-truth confusion.
+ 6. Strengthen the portfolio story from "good Claude config" to "agentic coding reliability system."
++7. Define a minimal agent adapter contract so Claude Code, Codex, and open-source agents can plug
++   into the same run/evidence/failure system over time.
+ 
+ ### 3.4 Non-Goals
+ 
+ - No Zed/ACP integration in v3 MVP.
+ - No custom full coding-agent harness in v3 MVP.
+-- No local model coding loop.
++- No open-source/local model coding loop as the default autonomous executor in v3 MVP.
+ - No distributed fleet.
+ - No autonomous deploy/push/send behavior.
+ - No database.
+@@ -379,6 +383,12 @@ agentic-workflow/
+     failure-case.md
+     postmortem.md
+ 
++  adapters/
++    adapter-contract.md
++    claude-code.md
++    codex.md
++    local-models.md
++
+   scripts/
+     _common.ps1                            # shared PS 5.1-safe helpers (dot-sourced)
+     new_run.ps1
+@@ -399,6 +409,23 @@ agentic-workflow/
+ 
+ Raw transcripts should not be committed by default. Store only sanitized excerpts.
+ 
++#### Agent Adapter Contract
++
++The core system should not care whether a run was performed by Claude Code, Codex, or an
++open-source agent. Each adapter normalizes the same minimum fields:
++
++- `agent_id`: stable name such as `claude-code`, `codex`, `ollama-helper`, or `openhands-local`
++- `agent_role`: planner, executor, reviewer, verifier, classifier, helper, or mixed
++- `surface`: product/runtime used for the run
++- `model`: model name when known
++- `artifacts`: plan, diff, evidence, review, final response, failure cases, and metrics
++- `approval_boundary`: outward-facing, destructive, or hard-to-reverse actions requiring Kerry
++- `result`: shipped, blocked, reverted, failed, or deferred
++- `verification`: commands, checks, screenshots, tests, or user-confirmed external state
++
++Claude Code is the first adapter because it is the active coding-agent workflow. Codex and
++open-source agents plug into the same contract once their artifacts are useful.
++
+ ### 3.8 Core Workflows
+ 
+ #### Workflow A: Start a Run
+@@ -408,10 +435,10 @@ Trigger: user starts a substantial coding task.
+ Steps:
+ 
+ 1. Create a run folder.
+-2. Record task, repo, branch, objective, validation target, and risk level.
++2. Record task, repo, branch, objective, validation target, risk level, and selected agent adapter.
+ 3. Link to project `STATUS.md`.
+ 4. Optionally create/reuse a worktree.
+-5. Proceed with the normal `/plan -> build -> /ship` loop.
++5. Proceed with the normal agent loop, such as `/plan -> build -> /ship` for Claude Code.
+ 
+ Acceptance criteria:
+ 
+@@ -671,6 +698,13 @@ with a single element.
+   "user_prompt_summary": "",
+   "status_path": "STATUS.md",
+   "risk_level": "medium",
++  "agent": {
++    "agent_id": "claude-code",
++    "agent_role": "mixed",
++    "surface": "claude-code",
++    "model": null,
++    "adapter_version": "v1"
++  },
+   "status": "in_progress",
+   "validation_plan": ["npm test", "npm run lint"],
+   "files_changed": [],
+@@ -722,18 +756,18 @@ Status (2026-07-08): mostly done; one item OPEN (see below).
+ Tasks:
+ 
+ - Keep AgentOS retired. **[done]**
+-- Revoke/delete retired AgentOS OAuth credential material. **[OPEN - needs Kerry]** No
+-  evidence of revocation in `HANDOFF.md`; the `agentos-gmail-auth` memory still names an
+-  active OAuth project (`agentos-497501`). Revoking credentials is outward-facing, so it is
+-  escalated rather than auto-done. Until closed, this is the one piece of retired-credential
+-  debt remaining.
++- Revoke/delete retired AgentOS OAuth credential material. **[done 2026-07-09]** Google OAuth
++  refresh token revoked; local `gmail_creds.json` / `gmail_token.json` removed from AgentOS; exact
++  retired project/client IDs absent from local searches; Kerry confirmed the remaining Google-side
++  surface was gone, including the last Google Calendar API. Console state was user-confirmed because
++  `gcloud` was not installed/configured in this environment.
+ - Confirm active repos are in the validation hook trusted allowlist. **[done]**
+ - Document coding-task permission policy. **[done]** - `docs/permission-policy.md`.
+ - Add this PRD to `agentic-workflow`. **[done]** - committed with the v1 build.
+ 
+ Done when:
+ 
+-- no retired credential debt remains **[blocked on the OPEN item above]**
++- no retired credential debt remains **[done 2026-07-09]**
+ - the revamp direction is committed **[done]**
+ - Zed/ACP is explicitly deferred **[done - section 3.15]**
+ 
+@@ -818,7 +852,8 @@ than 10 run records, fewer than 3 failure-to-improvement cases).
+ 
+ Candidates:
+ 
+-- Zed/ACP bridge
++- Zed/ACP adapter conformance (separate user-owned project; the core owns only the shared
++  contract and normalized artifacts)
+ - HTML/Lavish run dashboard
+ - lightweight local dashboard
+ - MCP wrappers
+@@ -872,7 +907,8 @@ Mitigation:
+ Mitigation:
+ 
+ - no custom executor in MVP
+-- use Claude Code and existing skills
++- use Claude Code and existing skills as the first adapter
++- keep the core run/failure/evidence format agent-agnostic
+ - build recordkeeping first
+ 
+ #### Risk: Windows/Mac/WSL split causes path drift
+@@ -885,27 +921,34 @@ Mitigation:
+ 
+ ### 3.15 Explicit Decision on Zed/ACP
+ 
+-Zed/ACP is deferred.
++Zed/ACP is **separate from the reliability-core MVP**, not abandoned. It may proceed as a
++user-owned adapter experiment in parallel once it targets the stable adapter contract. Production
++positioning remains gated on an end-to-end conformance demo.
+ 
+ Rationale:
+ 
+-- The active workflow is Claude Code-centered.
++- The active workflow is Claude Code-centered, but the product should be agent-agnostic.
+ - Reliability artifacts are missing regardless of editor.
++- The core should not absorb ACP transport, Zed UI, model sessions, or editor-specific tool code.
+ - ACP integration would create a second control surface before the first one has durable evals.
++- A separate adapter lets Kerry learn and experiment with ACP without forking the workflow contract.
+ - If Zed is added later, it should call into the existing run/failure system, not replace it.
+ 
+ Future Zed story:
+ 
+ ```text
+ Zed = optional cockpit
+-Claude Code workflow = agent engine
+-Agentic Workflow v3 = reliability/eval layer
+-Project repos = actual work
++Claude Code / Codex / Zed-ACP / local runners = separate agent adapters
++Agentic Workflow v3 = agent-agnostic reliability/eval core
++Project repos = execution targets
+ ```
+ 
++See `docs/architecture.md` and `adapters/zed-acp.md` for the ownership boundary and conformance
++flow.
++
+ ### 3.16 Final Recommendation
+ 
+-Build v3 as a reliability layer, not a new platform. **v1 of that layer is built and hardened to
++Build v3 as an adapter-ready reliability layer, not a new executor platform. **v1 of that layer is built and hardened to
+ fully-working** (run/failure/metrics scripts hardened under PS 5.1, a **32-check regression harness,
+ deterministically green**, `/ship` + `/review` wired to run records). What remains, in order:
+ 
+@@ -915,6 +958,8 @@ deterministically green**, `/ship` + `/review` wired to run records). What remai
+    to its regression in `tests/run_tests.ps1`. **[done 2026-07-09]** - CASE-0001..0003.
+ 3. **Wire `/review`** to offer `capture_failure` on serious findings. **[done 2026-07-09, step 5]**
+    Still open: extend `/distill` for failure lessons (Phase 3 remainder).
+-4. **Close the Phase 0 OPEN item** - revoke the retired AgentOS OAuth credential (needs Kerry).
+-5. **Revisit Zed/ACP** only after the workflow has real run/failure data (Phase 5 gate).
+-
++4. **Use the adapter contract on real tasks** - Claude Code first, then Codex/local helpers once the
++   evidence format proves useful.
++5. **Build the Zed/ACP experiment separately against the adapter contract.** It may proceed in
++   parallel; treat it as production-ready only after it completes the success, failure, and
++   permission conformance flows in `adapters/zed-acp.md`.
+diff --git a/README.md b/README.md
+index f400bac..dc83afe 100644
+--- a/README.md
++++ b/README.md
+@@ -2,16 +2,20 @@
+ 
+ Kerry's agentic coding workflow repository.
+ 
+-The running agent behavior still lives in `C:\Users\PC\.claude\` (global brief, skills, subagents,
+-hooks). This repo is now the durable reliability layer around that workflow: run records, failure
+-cases, ship evidence, metrics, and handoff docs.
++The first running agent behavior lives in `C:\Users\PC\.claude\` (global brief, skills, subagents,
++hooks), but this repo is agent-agnostic by design. It is the durable reliability layer for coding
++agents: run records, failure cases, ship evidence, metrics, adapter contracts, and handoff docs.
+ 
+ ## Current Source of Truth
+ 
+ - `HANDOFF.md` - live state and next actions. A fresh instance should read this first.
+ - `PRD.md` - Agentic Workflow v3 product decision and scope.
++- `docs/architecture.md` - ownership boundary between the reliability core and execution adapters.
+ - `docs/workflows.md` - how to use the v3 MVP helpers.
++- `docs/ai-coding-workflow.md` - the general plan/build/review/ship loop agents plug into.
+ - `docs/permission-policy.md` - auto / approval / blocked policy for coding tasks.
++- `adapters/adapter-contract.md` - common record shape for Claude Code, Codex, and local agents.
++- `adapters/zed-acp.md` - contract and conformance target for Kerry's separate Zed/ACP experiment.
+ - `metrics/summary.md` - generated reliability metrics.
+ 
+ ## Layout (v1)
+@@ -19,6 +23,7 @@ cases, ship evidence, metrics, and handoff docs.
+ ```text
+ runs/        substantial coding-run records
+ failures/    replayable or inspectable failure cases
++adapters/    agent adapter contract + concrete adapter notes
+ templates/   Markdown reference for hand-written records
+ scripts/     PowerShell 5.1 helpers (share _common.ps1):
+                new_run, update_run, complete_run,
+@@ -34,6 +39,7 @@ docs/        operating docs and policies (start with docs/workflows.md)
+ & C:\Users\PC\agentic-workflow\scripts\new_run.ps1 `
+   -Objective "Describe the task" `
+   -Repo C:\Users\PC\some-repo `
++  -AgentId claude-code `
+   -ValidationPlan 'npm test', 'npm run lint'
+ ```
+ 
+diff --git a/USAGE.md b/USAGE.md
+index 27ddd30..a73b372 100644
+--- a/USAGE.md
++++ b/USAGE.md
+@@ -8,6 +8,10 @@ VS Code for diffs/debugging/hand-edits and the terminal as normal.
+ a run record before major edits, complete it after `/ship`, and capture serious failures as eval
+ cases. See `docs/workflows.md`.
+ 
++**Adapter update:** the reliability layer is no longer Claude-only. Claude Code is the first adapter,
++but `scripts\new_run.ps1` can also record `-AgentId codex`, `-AgentId local-model`, or another
++adapter that follows `adapters/adapter-contract.md`.
++
+ ---
+ 
+ ## 1. The change — before vs. now
+diff --git a/adapters/adapter-contract.md b/adapters/adapter-contract.md
+new file mode 100644
+index 0000000..e8b5088
+--- /dev/null
++++ b/adapters/adapter-contract.md
+@@ -0,0 +1,91 @@
++# Agent Adapter Contract
++
++Agentic Workflow is a reliability control plane, not a replacement executor. Any coding agent can
++plug in if it can produce the same durable records.
++
++## System Boundary
++
++Keep the reliability core and execution adapters separate:
++
++- **Agentic Workflow core** owns run/failure schemas, lifecycle scripts, evidence conventions,
++  metrics, and the shared permission policy.
++- **Adapters** own protocol and surface integration, model/session lifecycle, context acquisition,
++  tool execution, and enforcement of approval boundaries.
++
++Adapters should call the core scripts or a future stable core API. They should not fork or
++reimplement the run/failure format. See `docs/architecture.md`.
++
++## Required Run Fields
++
++Every run must identify its **primary adapter**: the agent/surface responsible for owning the run
++and producing the final artifact set. Use `manual` when no automation owns the run; never guess a
++specific agent.
++
++```json
++{
++  "agent": {
++    "agent_id": "claude-code",
++    "agent_role": "mixed",
++    "surface": "claude-code",
++    "model": null,
++    "adapter_version": "v1"
++  }
++}
++```
++
++Fields:
++
++- `agent_id`: stable primary-adapter name, for example `claude-code`, `codex`, `zed-acp`,
++  `local-model`, `openhands-local`, or `manual`.
++- `agent_role`: the primary adapter's role: `planner`, `executor`, `reviewer`, `verifier`,
++  `classifier`, `helper`, or `mixed`.
++- `surface`: product or runtime surface used for the run.
++- `model`: model name when known; otherwise `null`.
++- `adapter_version`: adapter-contract version emitted by the adapter.
++
++### Multi-actor Runs
++
++The v1 `agent` block identifies the primary run owner; it does not imply that the same actor
++performed independent review. Record the reviewer in `review.md` today. If cross-agent metrics
++become necessary, add versioned actor metadata/events rather than overloading the primary `agent`
++block.
++
++## Required Artifacts
++
++Each adapter should write or preserve the standard run folder:
++
++- `task.md`: objective, prompt summary, repo, risk, validation target, and agent adapter.
++- `plan.md`: intended approach before major edits.
++- `commands.jsonl`: commands/checks worth preserving.
++- `evidence.md`: verification proof and links.
++- `review.md`: independent review result and must-fix status.
++- `final.md`: ship report.
++- `diff.patch`: optional captured diff when safe.
++
++## Approval Boundary
++
++Adapters must not perform outward-facing, destructive, or hard-to-reverse actions without Kerry's
++approval. Examples include credential revocation, deleting remote resources, sending email,
++deploying public services, pushing to shared remotes, or changing billing/security settings.
++
++The core policy is normative; it is not itself a tool sandbox. Each adapter must enforce the
++boundary at its execution surface and record human approval in the run evidence. A Zed/ACP adapter,
++for example, owns command/file approval prompts even though the shared policy lives here.
++
++## Transcript Policy
++
++Raw private transcripts are not part of the contract. Store concise summaries, sanitized command
++events, evidence links, and failure cases. Only quote transcript snippets when they are necessary to
++reproduce a failure.
++
++## Adapter Readiness
++
++A new adapter is ready when it can:
++
++1. Start a run with agent metadata.
++2. Preserve the plan/build/review/ship loop in the standard artifacts.
++3. Record validation evidence before marking a run shipped.
++4. Capture serious misses as `failures/CASE-####_*`.
++5. Respect `docs/permission-policy.md`.
++6. Pass the core lifecycle tests plus adapter-specific conformance tests without changing the
++   shared artifact meaning.
+diff --git a/adapters/claude-code.md b/adapters/claude-code.md
+new file mode 100644
+index 0000000..81982d0
+--- /dev/null
++++ b/adapters/claude-code.md
+@@ -0,0 +1,32 @@
++# Claude Code Adapter
++
++Status: first concrete adapter
++
++Claude Code remains the primary coding-agent workflow: planning, edits, review, ship reports,
++subagents, hooks, and worktrees. Agentic Workflow wraps it with durable records.
++
++## Start
++
++```powershell
++& C:\Users\PC\agentic-workflow\scripts\new_run.ps1 `
++  -Objective "Describe the task" `
++  -Repo C:\Users\PC\some-repo `
++  -AgentId claude-code `
++  -AgentRole mixed `
++  -AgentSurface claude-code `
++  -ValidationPlan 'npm test', 'npm run lint'
++```
++
++## Loop
++
++1. Read project instructions and current status.
++2. Start or reuse a run record before major edits.
++3. Use the normal `/plan -> build -> /review -> /ship` loop.
++4. Append evidence and command notes during the run.
++5. Complete the run only after validation and review are recorded.
++6. Capture serious misses as failure cases.
++
++## Notes
++
++Claude Code-specific commands may write richer Markdown, but the durable contract is still the
++standard `runs/<id>/` folder.
+diff --git a/adapters/codex.md b/adapters/codex.md
+new file mode 100644
+index 0000000..a378a26
+--- /dev/null
++++ b/adapters/codex.md
+@@ -0,0 +1,27 @@
++# Codex Adapter
++
++Status: planned / usable manually
++
++Codex can use the same reliability layer by starting a run record, preserving evidence, and closing
++with a ship report. Codex should not be treated as a separate MVP; it is another adapter into the
++same run/failure/evidence system.
++
++## Start
++
++```powershell
++& C:\Users\PC\agentic-workflow\scripts\new_run.ps1 `
++  -Objective "Describe the task" `
++  -Repo C:\Users\PC\some-repo `
++  -AgentId codex `
++  -AgentRole mixed `
++  -AgentSurface codex `
++  -ValidationPlan 'pytest', 'ruff check .'
++```
++
++## Responsibilities
++
++- Use `AGENTS.md` and project docs as the task contract.
++- Keep file edits scoped.
++- Record important commands through `update_run.ps1`.
++- Complete through `complete_run.ps1` after validation.
++- Link serious misses to `capture_failure.ps1`.
+diff --git a/adapters/local-models.md b/adapters/local-models.md
+new file mode 100644
+index 0000000..065fcbe
+--- /dev/null
++++ b/adapters/local-models.md
+@@ -0,0 +1,30 @@
++# Local / Open-Source Model Adapter
++
++Status: helper first, executor later
++
++Local models should plug into the reliability layer as helpers before they become autonomous coding
++executors. Good first roles:
++
++- summarize long logs
++- classify failure cases
++- draft labels and tags
++- summarize metrics
++- run retrieval or embedding experiments
++
++## Start
++
++```powershell
++& C:\Users\PC\agentic-workflow\scripts\new_run.ps1 `
++  -Objective "Classify recent failure cases" `
++  -Repo C:\Users\PC\agentic-workflow `
++  -AgentId local-model `
++  -AgentRole classifier `
++  -AgentSurface ollama `
++  -AgentModel "llama3.1:8b" `
++  -ValidationPlan 'review generated labels'
++```
++
++## Guardrail
++
++Do not make local/open-source models the default autonomous coding executor until they can produce
++useful run records, evidence, and failure cases under this contract.
+diff --git a/adapters/zed-acp.md b/adapters/zed-acp.md
+new file mode 100644
+index 0000000..579e886
+--- /dev/null
++++ b/adapters/zed-acp.md
+@@ -0,0 +1,76 @@
++# Zed / ACP Adapter
++
++Status: user-owned experiment; separate project, shared reliability contract
++
++The Zed/ACP project is not part of the Agentic Workflow core. It is an execution adapter and cockpit
++that should run the same frame/context/plan/build/review/verify/ship/learn workflow as Claude Code
++and Codex.
++
++## Goal
++
++From Zed, complete a small bug-fix task while producing the standard run, evidence, review, diff,
++and failure artifacts in `agentic-workflow`.
++
++## Adapter Identity
++
++Start runs with explicit metadata:
++
++```powershell
++& C:\Users\PC\agentic-workflow\scripts\new_run.ps1 `
++  -Objective "Fix the failing navbar test" `
++  -Repo C:\Users\PC\some-repo `
++  -AgentId zed-acp `
++  -AgentRole mixed `
++  -AgentSurface zed `
++  -ValidationPlan 'npm test', 'npm run lint'
++```
++
++## Adapter Responsibilities
++
++The separate Zed/ACP project owns:
++
++- ACP protocol implementation and Zed external-agent configuration
++- model/session lifecycle
++- plan display and human approval UX
++- context acquisition and repo tool execution
++- command/file permission enforcement
++- progress, diff, test, and final-result presentation
++- lifecycle calls into Agentic Workflow
++
++## Core Mapping
++
++| Zed/ACP event | Agentic Workflow action |
++|---|---|
++| Task accepted | `new_run.ps1` |
++| Plan proposed/approved | preserve `plan.md` and approval evidence |
++| Important command or check | `update_run.ps1` |
++| Serious agent/reviewer miss | `capture_failure.ps1` |
++| Verification and review complete | populate `evidence.md` / `review.md` |
++| Task completed, blocked, or abandoned | `complete_run.ps1` with honest status |
++| Durable fix lands | `resolve_failure.ps1` + metrics refresh |
++
++## Non-Goals
++
++Do not rebuild inside the Zed project:
++
++- run/failure schemas
++- failure taxonomy
++- metrics aggregation
++- evidence/ship report format
++- portfolio history
++
++If the adapter needs a contract change, propose it in `agentic-workflow` and keep backward-readable
++records.
++
++## First Conformance Demo
++
++1. Start a run from a Zed task.
++2. Show and approve a plan.
++3. Retrieve targeted context and edit a task branch/worktree.
++4. Run validation and an independent review.
++5. Complete the run with diff and evidence.
++6. Repeat with a controlled failure that creates a failure case.
++7. Demonstrate that a risky command waits for explicit approval.
++
++When those pass, the Zed/ACP project is a working adapter over the scoped MVP rather than a second,
++competing workflow system.
+diff --git a/docs/ai-coding-workflow.md b/docs/ai-coding-workflow.md
+new file mode 100644
+index 0000000..1ceadb1
+--- /dev/null
++++ b/docs/ai-coding-workflow.md
+@@ -0,0 +1,64 @@
++# AI Coding Workflow
++
++This is the general workflow for plugging Claude Code, Codex, or local/open-source agents into
++Agentic Workflow. It is inspired by the practical AI-coding loop: give the agent clear context,
++make it plan, let it build in a bounded scope, review the result, verify with evidence, and preserve
++what happened.
++
++## Loop
++
++1. **Frame**
++   - Define the objective, repo, branch/worktree, risk level, and validation target.
++   - Start a run with the selected adapter before major edits.
++
++2. **Context**
++   - Read local instructions first: `AGENTS.md`, `README`, `STATUS`, `HANDOFF`, relevant docs.
++   - Record only the useful summary in `task.md`; do not store raw private transcript by default.
++
++3. **Plan**
++   - Write or preserve a short plan in `plan.md`.
++   - Identify approval boundaries before the agent acts.
++
++4. **Build**
++   - Let the selected agent work inside the repo/worktree.
++   - Keep edits scoped to the objective.
++   - Append important commands or checks with `update_run.ps1`.
++
++5. **Review**
++   - Run an independent review pass.
++   - Put findings in `review.md`.
++   - Capture serious misses as failure cases instead of leaving them in chat.
++
++6. **Verify**
++   - Run the stated validation plan.
++   - Save evidence in `evidence.md` and links in `run.json`.
++   - Be explicit when validation is user-confirmed or externally verified.
++
++7. **Ship**
++   - Complete the run with `complete_run.ps1`.
++   - Capture a safe diff when useful.
++   - Leave `final.md` readable without chat history.
++
++8. **Learn**
++   - If the agent failed in a meaningful way, create or resolve a `failures/CASE-####_*`.
++   - Update the right prevention layer: test, hook, skill, adapter doc, project doc, or workflow rule.
++
++## Agent Selection
++
++- Use `claude-code` for primary complex coding work.
++- Use `codex` when the work is already in a Codex thread or benefits from Codex's local tooling.
++- Use `local-model` for cheap helper roles first: summarization, classification, tagging, metrics.
++- Add new agents by documenting them under `adapters/` and using the adapter contract.
++
++## Done Means
++
++A run is not done because an agent says it is done. A run is done when the record contains:
++
++- objective
++- selected agent adapter
++- plan
++- changed files or clear no-op result
++- validation evidence
++- review result
++- final outcome
++- failure case links when applicable
+diff --git a/docs/architecture.md b/docs/architecture.md
+new file mode 100644
+index 0000000..4c27445
+--- /dev/null
++++ b/docs/architecture.md
+@@ -0,0 +1,108 @@
++# Architecture: Reliability Core + Agent Adapters
++
++Agentic Workflow and the Zed/ACP agent project are separate products with one shared workflow
++contract. They should evolve independently without duplicating each other's responsibilities.
++
++## Two Interconnected Systems
++
++```text
++Zed / Claude Code / Codex / local runner
++                 |
++                 v
++        agent-specific adapter
++        - protocol and sessions
++        - context and tool execution
++        - approval enforcement
++                 |
++                 v
++       Agentic Workflow contract
++        - start/update/complete run
++        - evidence and review
++        - failure capture and replay metadata
++        - metrics and regression history
++                 |
++                 v
++             project repo
++```
++
++The adapter performs the work. The core records whether the work was controlled, verified, and
++useful enough to learn from.
++
++## Ownership Boundary
++
++| Concern | Reliability core (`agentic-workflow`) | Agent adapter / Zed-ACP project |
++|---|---|---|
++| Run and failure schemas | Owns | Consumes |
++| Lifecycle and metrics | Owns | Calls and reports into |
++| Evidence/review conventions | Owns | Produces compliant artifacts |
++| Shared permission policy | Owns policy | Enforces at the tool surface |
++| ACP protocol and Zed UI | Does not own | Owns |
++| Model/session lifecycle | Does not own | Owns |
++| Repo context and tool execution | Does not own | Owns |
++| Editor progress/diff presentation | Does not own | Owns |
++| Cross-agent reliability comparison | Owns normalized metrics | Supplies agent metadata |
++
++This boundary prevents two failure modes: turning the reliability repo into another editor-specific
++agent, and letting each agent invent incompatible evidence/failure formats.
++
++## Shared Lifecycle
++
++Every adapter maps its native events onto the same lifecycle:
++
++1. Frame the objective, repo, risk, validation plan, and primary adapter.
++2. Start a run before major edits.
++3. Preserve the approved plan.
++4. Execute inside the adapter's own tool and permission boundary.
++5. Record important commands, decisions, and evidence.
++6. Run independent review and verification.
++7. Complete the run only with an honest outcome.
++8. Capture serious failures and attach durable prevention.
++
++Adapters call the core entry points rather than writing JSON/Markdown formats independently:
++
++```text
++new_run.ps1 -> update_run.ps1 -> complete_run.ps1
++                    |                  |
++                    +-> capture_failure.ps1 -> resolve_failure.ps1
++```
++
++A future library or MCP wrapper may replace direct PowerShell invocation, but it must preserve the
++same contract and backward-readable artifacts.
++
++## Contract Rules
++
++- `agent` identifies the primary adapter that owns the run, not every actor that participated.
++- Use `manual` when the primary adapter is unknown; never silently attribute work to Claude/Codex.
++- Independent reviewer identity stays in `review.md` for v1. Add versioned actor events only when
++  cross-agent analysis needs them.
++- Raw transcripts are not core artifacts. Store sanitized summaries and evidence.
++- Permission policy in the core is normative. Enforcement belongs to the adapter/tool surface.
++- Contract changes require a version bump and conformance tests before adapters adopt them.
++
++## Zed/ACP Project Boundary
++
++The Zed/ACP work should be a separate, user-owned experiment (for example `zed-acp-agents`) that
++depends on this contract. It may progress in parallel with the reliability core.
++
++The Zed/ACP project owns:
++
++- ACP server/gateway and Zed configuration
++- agent session and model selection
++- plan/approval/progress/diff messages in Zed
++- context retrieval and tool execution
++- enforcement of command/file permissions
++- translation of native events into core lifecycle calls
++
++It should not own a second run schema, failure taxonomy, metrics store, or ship-report format.
++
++## Readiness Gates
++
++A new adapter is ready for normal use when it can demonstrate one complete task and one failed task:
++
++- complete task: plan -> edit -> test -> review -> evidence -> completed run
++- failed task: traceable failure -> failure case -> regression/prevention -> replayable result
++- permissions: at least one risky action is blocked or held for explicit approval
++- compatibility: core tests remain green and old records remain readable
++
++The Zed/ACP experiment does not need to wait for the core to become a large platform. It only needs
++a stable v1 adapter contract. Production positioning should wait until the conformance flow passes.
+diff --git a/docs/workflows.md b/docs/workflows.md
+index 718f01a..8221e6f 100644
+--- a/docs/workflows.md
++++ b/docs/workflows.md
+@@ -1,8 +1,8 @@
+ # Agentic Workflow v1 (reliability layer)
+ 
+-A reliability layer around the existing Claude Code workflow. It does not replace `/plan`,
+-`/review`, `/ship`, worktrees, hooks, or subagents - it adds durable run records, failure
+-cases, ship evidence, and honest metrics.
++An agent-agnostic reliability layer. Claude Code is the first supported adapter, but the same run
++records, failure cases, ship evidence, and metrics can wrap Codex or local/open-source agents.
++See `docs/ai-coding-workflow.md` and `adapters/adapter-contract.md` for the general loop.
+ 
+ ## Invocation (read first)
+ 
+@@ -28,6 +28,7 @@ For substantial coding tasks, before major edits.
+ & C:\Users\PC\agentic-workflow\scripts\new_run.ps1 `
+   -Objective "Fix failing navbar test" `
+   -Repo C:\Users\PC\example-repo `
++  -AgentId claude-code `
+   -RiskLevel medium `
+   -ValidationPlan 'npm test', 'npm run lint'
+ ```
+@@ -36,7 +37,7 @@ For substantial coding tasks, before major edits.
+ command like `'pytest -k "a,b"'` is preserved. The script prints the generated run ID (format
+ `yyyy-MM-dd_HHmm_slug`) - later steps auto-detect it, so you rarely need to copy it.
+ 
+-Done when `runs/<run-id>/run.json` exists with `status: in_progress`.
++Done when `runs/<run-id>/run.json` exists with `status: in_progress` and an `agent` block.
+ 
+ ## B. Work the run (optional, mid-flight)
+ 
+diff --git a/failures/CASE-0004_update-run-parallel-evidence-links-lost/actual.md b/failures/CASE-0004_update-run-parallel-evidence-links-lost/actual.md
+new file mode 100644
+index 0000000..863b1f1
+--- /dev/null
++++ b/failures/CASE-0004_update-run-parallel-evidence-links-lost/actual.md
+@@ -0,0 +1,3 @@
++# Actual Behavior
++
++Last writer wins on run.json; 3-4 links vanish silently while every process reports success
+\ No newline at end of file
+diff --git a/failures/CASE-0004_update-run-parallel-evidence-links-lost/classification.md b/failures/CASE-0004_update-run-parallel-evidence-links-lost/classification.md
+new file mode 100644
+index 0000000..453aa7d
+--- /dev/null
++++ b/failures/CASE-0004_update-run-parallel-evidence-links-lost/classification.md
+@@ -0,0 +1,11 @@
++# Classification
++
++- Failure class: tool_error
++- Severity: must_fix
++- Prevention layer: cross-process mutex + atomic JSON writes in _common.ps1
++
++## Root Cause
++TBD
++
++## Contributing Factors
++- TBD
+\ No newline at end of file
+diff --git a/failures/CASE-0004_update-run-parallel-evidence-links-lost/evidence.md b/failures/CASE-0004_update-run-parallel-evidence-links-lost/evidence.md
+new file mode 100644
+index 0000000..d309c14
+--- /dev/null
++++ b/failures/CASE-0004_update-run-parallel-evidence-links-lost/evidence.md
+@@ -0,0 +1,3 @@
++# Evidence
++
++- TBD
+\ No newline at end of file
+diff --git a/failures/CASE-0004_update-run-parallel-evidence-links-lost/expected.md b/failures/CASE-0004_update-run-parallel-evidence-links-lost/expected.md
+new file mode 100644
+index 0000000..7e140af
+--- /dev/null
++++ b/failures/CASE-0004_update-run-parallel-evidence-links-lost/expected.md
+@@ -0,0 +1,3 @@
++# Expected Behavior
++
++Every evidence link passed by any concurrent caller lands in run.json
+\ No newline at end of file
+diff --git a/failures/CASE-0004_update-run-parallel-evidence-links-lost/failure.json b/failures/CASE-0004_update-run-parallel-evidence-links-lost/failure.json
+new file mode 100644
+index 0000000..6fb8100
+--- /dev/null
++++ b/failures/CASE-0004_update-run-parallel-evidence-links-lost/failure.json
+@@ -0,0 +1,17 @@
++{
++    "case_id":  "CASE-0004",
++    "created_at":  "2026-07-09T21:12:31-04:00",
++    "resolved_at":  "2026-07-09T22:53:16-04:00",
++    "machine":  "windows",
++    "linked_run":  "2026-07-09_1953_independent-review-of-the-v1",
++    "repo":  "C:/Users/PC/agentic-workflow",
++    "repo_name":  "agentic-workflow",
++    "commit_or_branch":  "master",
++    "summary":  "update_run parallel evidence links lost to read-modify-write race",
++    "failure_class":  "tool_error",
++    "severity":  "must_fix",
++    "repro_command":  "12 parallel update_run.ps1 -EvidenceLink link-N against one run; only 8-9 of 12 survive, all exit 0",
++    "status":  "fixed",
++    "prevention_layer":  "cross-process mutex plus atomic JSON writes",
++    "regression_test":  "tests/run_tests.ps1::R17"
++}
+\ No newline at end of file
+diff --git a/failures/CASE-0004_update-run-parallel-evidence-links-lost/fix.md b/failures/CASE-0004_update-run-parallel-evidence-links-lost/fix.md
+new file mode 100644
+index 0000000..cf54a42
+--- /dev/null
++++ b/failures/CASE-0004_update-run-parallel-evidence-links-lost/fix.md
+@@ -0,0 +1,17 @@
++# Fix
++
++## Proposed Fix
++TBD
++
++## Applied Fix
++TBD
++
++## Verification
++TBD
++
++## Resolution (2026-07-09T22:53:16-04:00)
++- Status: fixed
++- Regression test: tests/run_tests.ps1::R17
++- Prevention layer: cross-process mutex plus atomic JSON writes
++
++Serialize evidence-link updates under the run-file mutex.
+\ No newline at end of file
+diff --git a/failures/CASE-0004_update-run-parallel-evidence-links-lost/prompt.md b/failures/CASE-0004_update-run-parallel-evidence-links-lost/prompt.md
+new file mode 100644
+index 0000000..ab70508
+--- /dev/null
++++ b/failures/CASE-0004_update-run-parallel-evidence-links-lost/prompt.md
+@@ -0,0 +1,11 @@
++# Prompt / Situation
++
++update_run parallel evidence links lost to read-modify-write race
++
++## Linked Run
++2026-07-09_1953_independent-review-of-the-v1
++
++## Repo
++- Machine: windows
++- Path: C:\Users\PC\agentic-workflow
++- Commit/branch: master
+\ No newline at end of file
+diff --git a/failures/CASE-0004_update-run-parallel-evidence-links-lost/regression.md b/failures/CASE-0004_update-run-parallel-evidence-links-lost/regression.md
+new file mode 100644
+index 0000000..00f968a
+--- /dev/null
++++ b/failures/CASE-0004_update-run-parallel-evidence-links-lost/regression.md
+@@ -0,0 +1,10 @@
++# Regression
++
++## Regression Test
++TBD
++
++## Failing-First Evidence
++TBD
++
++## Passing Evidence
++TBD
+\ No newline at end of file
+diff --git a/failures/CASE-0004_update-run-parallel-evidence-links-lost/repro.md b/failures/CASE-0004_update-run-parallel-evidence-links-lost/repro.md
+new file mode 100644
+index 0000000..7683b5d
+--- /dev/null
++++ b/failures/CASE-0004_update-run-parallel-evidence-links-lost/repro.md
+@@ -0,0 +1,10 @@
++# Reproduction
++
++## Command
++
++```powershell
++12 parallel update_run.ps1 -EvidenceLink link-N against one run; only 8-9 of 12 survive, all exit 0
++```
++
++## Manual Steps
++- TBD
+\ No newline at end of file
+diff --git a/failures/CASE-0005_capture-failure-allocates-duplicate/actual.md b/failures/CASE-0005_capture-failure-allocates-duplicate/actual.md
+new file mode 100644
+index 0000000..b13aede
+--- /dev/null
++++ b/failures/CASE-0005_capture-failure-allocates-duplicate/actual.md
+@@ -0,0 +1,3 @@
++# Actual Behavior
++
++Directory-claim only collides on identical slugs, so CASE-000N_a and CASE-000N_b both get allocated
+\ No newline at end of file
+diff --git a/failures/CASE-0005_capture-failure-allocates-duplicate/classification.md b/failures/CASE-0005_capture-failure-allocates-duplicate/classification.md
+new file mode 100644
+index 0000000..cc52986
+--- /dev/null
++++ b/failures/CASE-0005_capture-failure-allocates-duplicate/classification.md
+@@ -0,0 +1,11 @@
++# Classification
++
++- Failure class: tool_error
++- Severity: must_fix
++- Prevention layer: case allocation serialized under the failures-dir mutex
++
++## Root Cause
++TBD
++
++## Contributing Factors
++- TBD
+\ No newline at end of file
+diff --git a/failures/CASE-0005_capture-failure-allocates-duplicate/evidence.md b/failures/CASE-0005_capture-failure-allocates-duplicate/evidence.md
+new file mode 100644
+index 0000000..d309c14
+--- /dev/null
++++ b/failures/CASE-0005_capture-failure-allocates-duplicate/evidence.md
+@@ -0,0 +1,3 @@
++# Evidence
++
++- TBD
+\ No newline at end of file
+diff --git a/failures/CASE-0005_capture-failure-allocates-duplicate/expected.md b/failures/CASE-0005_capture-failure-allocates-duplicate/expected.md
+new file mode 100644
+index 0000000..73b7d81
+--- /dev/null
++++ b/failures/CASE-0005_capture-failure-allocates-duplicate/expected.md
+@@ -0,0 +1,3 @@
++# Expected Behavior
++
++Concurrent captures get distinct CASE numbers
+\ No newline at end of file
+diff --git a/failures/CASE-0005_capture-failure-allocates-duplicate/failure.json b/failures/CASE-0005_capture-failure-allocates-duplicate/failure.json
+new file mode 100644
+index 0000000..5329568
+--- /dev/null
++++ b/failures/CASE-0005_capture-failure-allocates-duplicate/failure.json
+@@ -0,0 +1,17 @@
++{
++    "case_id":  "CASE-0005",
++    "created_at":  "2026-07-09T21:12:31-04:00",
++    "resolved_at":  "2026-07-09T22:53:17-04:00",
++    "machine":  "windows",
++    "linked_run":  "2026-07-09_1953_independent-review-of-the-v1",
++    "repo":  "C:/Users/PC/agentic-workflow",
++    "repo_name":  "agentic-workflow",
++    "commit_or_branch":  "master",
++    "summary":  "capture_failure allocates duplicate case IDs under parallel invocation",
++    "failure_class":  "tool_error",
++    "severity":  "must_fix",
++    "repro_command":  "parallel capture_failure.ps1 with different summaries; both scan max case number before either creates",
++    "status":  "fixed",
++    "prevention_layer":  "failure-directory mutex",
++    "regression_test":  "tests/run_tests.ps1::R18"
++}
+\ No newline at end of file
+diff --git a/failures/CASE-0005_capture-failure-allocates-duplicate/fix.md b/failures/CASE-0005_capture-failure-allocates-duplicate/fix.md
+new file mode 100644
+index 0000000..dc55182
+--- /dev/null
++++ b/failures/CASE-0005_capture-failure-allocates-duplicate/fix.md
+@@ -0,0 +1,17 @@
++# Fix
++
++## Proposed Fix
++TBD
++
++## Applied Fix
++TBD
++
++## Verification
++TBD
++
++## Resolution (2026-07-09T22:53:17-04:00)
++- Status: fixed
++- Regression test: tests/run_tests.ps1::R18
++- Prevention layer: failure-directory mutex
++
++Serialize scan and case-ID allocation under one mutex.
+\ No newline at end of file
+diff --git a/failures/CASE-0005_capture-failure-allocates-duplicate/prompt.md b/failures/CASE-0005_capture-failure-allocates-duplicate/prompt.md
+new file mode 100644
+index 0000000..dc67f50
+--- /dev/null
++++ b/failures/CASE-0005_capture-failure-allocates-duplicate/prompt.md
+@@ -0,0 +1,11 @@
++# Prompt / Situation
++
++capture_failure allocates duplicate case IDs under parallel invocation
++
++## Linked Run
++2026-07-09_1953_independent-review-of-the-v1
++
++## Repo
++- Machine: windows
++- Path: C:\Users\PC\agentic-workflow
++- Commit/branch: master
+\ No newline at end of file
+diff --git a/failures/CASE-0005_capture-failure-allocates-duplicate/regression.md b/failures/CASE-0005_capture-failure-allocates-duplicate/regression.md
+new file mode 100644
+index 0000000..00f968a
+--- /dev/null
++++ b/failures/CASE-0005_capture-failure-allocates-duplicate/regression.md
+@@ -0,0 +1,10 @@
++# Regression
++
++## Regression Test
++TBD
++
++## Failing-First Evidence
++TBD
++
++## Passing Evidence
++TBD
+\ No newline at end of file
+diff --git a/failures/CASE-0005_capture-failure-allocates-duplicate/repro.md b/failures/CASE-0005_capture-failure-allocates-duplicate/repro.md
+new file mode 100644
+index 0000000..2198b74
+--- /dev/null
++++ b/failures/CASE-0005_capture-failure-allocates-duplicate/repro.md
+@@ -0,0 +1,10 @@
++# Reproduction
++
++## Command
++
++```powershell
++parallel capture_failure.ps1 with different summaries; both scan max case number before either creates
++```
++
++## Manual Steps
++- TBD
+\ No newline at end of file
+diff --git a/failures/CASE-0006_diff-patch-corrupted-when-a-changed/actual.md b/failures/CASE-0006_diff-patch-corrupted-when-a-changed/actual.md
+new file mode 100644
+index 0000000..f9a83d5
+--- /dev/null
++++ b/failures/CASE-0006_diff-patch-corrupted-when-a-changed/actual.md
+@@ -0,0 +1,3 @@
++# Actual Behavior
++
++Get-RepoDiff round-trips patch bytes through a UTF-8 string; invalid sequences become U+FFFD and git apply fails
+\ No newline at end of file
+diff --git a/failures/CASE-0006_diff-patch-corrupted-when-a-changed/classification.md b/failures/CASE-0006_diff-patch-corrupted-when-a-changed/classification.md
+new file mode 100644
+index 0000000..6b82d23
+--- /dev/null
++++ b/failures/CASE-0006_diff-patch-corrupted-when-a-changed/classification.md
+@@ -0,0 +1,11 @@
++# Classification
++
++- Failure class: environment_platform_issue
++- Severity: must_fix
++- Prevention layer: git writes the patch file directly; bytes copied, never decoded
++
++## Root Cause
++TBD
++
++## Contributing Factors
++- TBD
+\ No newline at end of file
+diff --git a/failures/CASE-0006_diff-patch-corrupted-when-a-changed/evidence.md b/failures/CASE-0006_diff-patch-corrupted-when-a-changed/evidence.md
+new file mode 100644
+index 0000000..d309c14
+--- /dev/null
++++ b/failures/CASE-0006_diff-patch-corrupted-when-a-changed/evidence.md
+@@ -0,0 +1,3 @@
++# Evidence
++
++- TBD
+\ No newline at end of file
+diff --git a/failures/CASE-0006_diff-patch-corrupted-when-a-changed/expected.md b/failures/CASE-0006_diff-patch-corrupted-when-a-changed/expected.md
+new file mode 100644
+index 0000000..89a6c96
+--- /dev/null
++++ b/failures/CASE-0006_diff-patch-corrupted-when-a-changed/expected.md
+@@ -0,0 +1,3 @@
++# Expected Behavior
++
++Captured diff.patch applies cleanly regardless of file encodings
+\ No newline at end of file
+diff --git a/failures/CASE-0006_diff-patch-corrupted-when-a-changed/failure.json b/failures/CASE-0006_diff-patch-corrupted-when-a-changed/failure.json
+new file mode 100644
+index 0000000..f680627
+--- /dev/null
++++ b/failures/CASE-0006_diff-patch-corrupted-when-a-changed/failure.json
+@@ -0,0 +1,17 @@
++{
++    "case_id":  "CASE-0006",
++    "created_at":  "2026-07-09T21:12:31-04:00",
++    "resolved_at":  "2026-07-09T22:53:18-04:00",
++    "machine":  "windows",
++    "linked_run":  "2026-07-09_1953_independent-review-of-the-v1",
++    "repo":  "C:/Users/PC/agentic-workflow",
++    "repo_name":  "agentic-workflow",
++    "commit_or_branch":  "master",
++    "summary":  "diff.patch corrupted when a changed file contains non-UTF-8 bytes",
++    "failure_class":  "environment_platform_issue",
++    "severity":  "must_fix",
++    "repro_command":  "repo with a Latin-1 (0xE9) encoded file; complete_run -CaptureDiff; git apply --check rejects the patch",
++    "status":  "fixed",
++    "prevention_layer":  "byte-preserving git diff capture",
++    "regression_test":  "tests/run_tests.ps1::R16"
++}
+\ No newline at end of file
+diff --git a/failures/CASE-0006_diff-patch-corrupted-when-a-changed/fix.md b/failures/CASE-0006_diff-patch-corrupted-when-a-changed/fix.md
+new file mode 100644
+index 0000000..402e910
+--- /dev/null
++++ b/failures/CASE-0006_diff-patch-corrupted-when-a-changed/fix.md
+@@ -0,0 +1,17 @@
++# Fix
++
++## Proposed Fix
++TBD
++
++## Applied Fix
++TBD
++
++## Verification
++TBD
++
++## Resolution (2026-07-09T22:53:18-04:00)
++- Status: fixed
++- Regression test: tests/run_tests.ps1::R16
++- Prevention layer: byte-preserving git diff capture
++
++Let git write patch bytes directly without a PowerShell string round-trip.
+\ No newline at end of file
+diff --git a/failures/CASE-0006_diff-patch-corrupted-when-a-changed/prompt.md b/failures/CASE-0006_diff-patch-corrupted-when-a-changed/prompt.md
+new file mode 100644
+index 0000000..69f08d2
+--- /dev/null
++++ b/failures/CASE-0006_diff-patch-corrupted-when-a-changed/prompt.md
+@@ -0,0 +1,11 @@
++# Prompt / Situation
++
++diff.patch corrupted when a changed file contains non-UTF-8 bytes
++
++## Linked Run
++2026-07-09_1953_independent-review-of-the-v1
++
++## Repo
++- Machine: windows
++- Path: C:\Users\PC\agentic-workflow
++- Commit/branch: master
+\ No newline at end of file
+diff --git a/failures/CASE-0006_diff-patch-corrupted-when-a-changed/regression.md b/failures/CASE-0006_diff-patch-corrupted-when-a-changed/regression.md
+new file mode 100644
+index 0000000..00f968a
+--- /dev/null
++++ b/failures/CASE-0006_diff-patch-corrupted-when-a-changed/regression.md
+@@ -0,0 +1,10 @@
++# Regression
++
++## Regression Test
++TBD
++
++## Failing-First Evidence
++TBD
++
++## Passing Evidence
++TBD
+\ No newline at end of file
+diff --git a/failures/CASE-0006_diff-patch-corrupted-when-a-changed/repro.md b/failures/CASE-0006_diff-patch-corrupted-when-a-changed/repro.md
+new file mode 100644
+index 0000000..6e5cda1
+--- /dev/null
++++ b/failures/CASE-0006_diff-patch-corrupted-when-a-changed/repro.md
+@@ -0,0 +1,10 @@
++# Reproduction
++
++## Command
++
++```powershell
++repo with a Latin-1 (0xE9) encoded file; complete_run -CaptureDiff; git apply --check rejects the patch
++```
++
++## Manual Steps
++- TBD
+\ No newline at end of file
+diff --git a/failures/CASE-0007_active-run-auto-detect-silently-picks/actual.md b/failures/CASE-0007_active-run-auto-detect-silently-picks/actual.md
+new file mode 100644
+index 0000000..3372f45
+--- /dev/null
++++ b/failures/CASE-0007_active-run-auto-detect-silently-picks/actual.md
+@@ -0,0 +1,3 @@
++# Actual Behavior
++
++Newest-wins across ALL repos with lexicographic created_at sort; wrong record completed, all exit 0
+\ No newline at end of file
+diff --git a/failures/CASE-0007_active-run-auto-detect-silently-picks/classification.md b/failures/CASE-0007_active-run-auto-detect-silently-picks/classification.md
+new file mode 100644
+index 0000000..be1a78f
+--- /dev/null
++++ b/failures/CASE-0007_active-run-auto-detect-silently-picks/classification.md
+@@ -0,0 +1,11 @@
++# Classification
++
++- Failure class: tool_error
++- Severity: must_fix
++- Prevention layer: Get-ActiveRunId throws when ambiguous and sorts by parsed DateTimeOffset
++
++## Root Cause
++TBD
++
++## Contributing Factors
++- TBD
+\ No newline at end of file
+diff --git a/failures/CASE-0007_active-run-auto-detect-silently-picks/evidence.md b/failures/CASE-0007_active-run-auto-detect-silently-picks/evidence.md
+new file mode 100644
+index 0000000..d309c14
+--- /dev/null
++++ b/failures/CASE-0007_active-run-auto-detect-silently-picks/evidence.md
+@@ -0,0 +1,3 @@
++# Evidence
++
++- TBD
+\ No newline at end of file
+diff --git a/failures/CASE-0007_active-run-auto-detect-silently-picks/expected.md b/failures/CASE-0007_active-run-auto-detect-silently-picks/expected.md
+new file mode 100644
+index 0000000..218e0e8
+--- /dev/null
++++ b/failures/CASE-0007_active-run-auto-detect-silently-picks/expected.md
+@@ -0,0 +1,3 @@
++# Expected Behavior
++
++Auto-detect either targets the intended run or refuses loudly
+\ No newline at end of file
+diff --git a/failures/CASE-0007_active-run-auto-detect-silently-picks/failure.json b/failures/CASE-0007_active-run-auto-detect-silently-picks/failure.json
+new file mode 100644
+index 0000000..424b7db
+--- /dev/null
++++ b/failures/CASE-0007_active-run-auto-detect-silently-picks/failure.json
+@@ -0,0 +1,17 @@
++{
++    "case_id":  "CASE-0007",
++    "created_at":  "2026-07-09T21:12:31-04:00",
++    "resolved_at":  "2026-07-09T22:53:19-04:00",
++    "machine":  "windows",
++    "linked_run":  "2026-07-09_1953_independent-review-of-the-v1",
++    "repo":  "C:/Users/PC/agentic-workflow",
++    "repo_name":  "agentic-workflow",
++    "commit_or_branch":  "master",
++    "summary":  "active-run auto-detect silently picks the wrong run (ambiguity + offset string sort)",
++    "failure_class":  "tool_error",
++    "severity":  "must_fix",
++    "repro_command":  "two in-progress runs (repoA newest); complete_run without -RunId shipped repoB\u0027s record; DST/cross-tz offsets also invert the string sort",
++    "status":  "fixed",
++    "prevention_layer":  "strict active-run resolution",
++    "regression_test":  "tests/run_tests.ps1::R19"
++}
+\ No newline at end of file
+diff --git a/failures/CASE-0007_active-run-auto-detect-silently-picks/fix.md b/failures/CASE-0007_active-run-auto-detect-silently-picks/fix.md
+new file mode 100644
+index 0000000..ae34052
+--- /dev/null
++++ b/failures/CASE-0007_active-run-auto-detect-silently-picks/fix.md
+@@ -0,0 +1,17 @@
++# Fix
++
++## Proposed Fix
++TBD
++
++## Applied Fix
++TBD
++
++## Verification
++TBD
++
++## Resolution (2026-07-09T22:53:19-04:00)
++- Status: fixed
++- Regression test: tests/run_tests.ps1::R19
++- Prevention layer: strict active-run resolution
++
++Reject ambiguous active runs and compare parsed timestamps.
+\ No newline at end of file
+diff --git a/failures/CASE-0007_active-run-auto-detect-silently-picks/prompt.md b/failures/CASE-0007_active-run-auto-detect-silently-picks/prompt.md
+new file mode 100644
+index 0000000..8c36a23
+--- /dev/null
++++ b/failures/CASE-0007_active-run-auto-detect-silently-picks/prompt.md
+@@ -0,0 +1,11 @@
++# Prompt / Situation
++
++active-run auto-detect silently picks the wrong run (ambiguity + offset string sort)
++
++## Linked Run
++2026-07-09_1953_independent-review-of-the-v1
++
++## Repo
++- Machine: windows
++- Path: C:\Users\PC\agentic-workflow
++- Commit/branch: master
+\ No newline at end of file
+diff --git a/failures/CASE-0007_active-run-auto-detect-silently-picks/regression.md b/failures/CASE-0007_active-run-auto-detect-silently-picks/regression.md
+new file mode 100644
+index 0000000..00f968a
+--- /dev/null
++++ b/failures/CASE-0007_active-run-auto-detect-silently-picks/regression.md
+@@ -0,0 +1,10 @@
++# Regression
++
++## Regression Test
++TBD
++
++## Failing-First Evidence
++TBD
++
++## Passing Evidence
++TBD
+\ No newline at end of file
+diff --git a/failures/CASE-0007_active-run-auto-detect-silently-picks/repro.md b/failures/CASE-0007_active-run-auto-detect-silently-picks/repro.md
+new file mode 100644
+index 0000000..16c46da
+--- /dev/null
++++ b/failures/CASE-0007_active-run-auto-detect-silently-picks/repro.md
+@@ -0,0 +1,10 @@
++# Reproduction
++
++## Command
++
++```powershell
++two in-progress runs (repoA newest); complete_run without -RunId shipped repoB's record; DST/cross-tz offsets also invert the string sort
++```
++
++## Manual Steps
++- TBD
+\ No newline at end of file
+diff --git a/failures/CASE-0008_agent-adapter-defaults-misattribute-non/actual.md b/failures/CASE-0008_agent-adapter-defaults-misattribute-non/actual.md
+new file mode 100644
+index 0000000..b8f503c
+--- /dev/null
++++ b/failures/CASE-0008_agent-adapter-defaults-misattribute-non/actual.md
+@@ -0,0 +1,3 @@
++# Actual Behavior
++
++Defaults attributed runs and surfaces to claude-code.
+\ No newline at end of file
+diff --git a/failures/CASE-0008_agent-adapter-defaults-misattribute-non/classification.md b/failures/CASE-0008_agent-adapter-defaults-misattribute-non/classification.md
+new file mode 100644
+index 0000000..5e3787e
+--- /dev/null
++++ b/failures/CASE-0008_agent-adapter-defaults-misattribute-non/classification.md
+@@ -0,0 +1,11 @@
++# Classification
++
++- Failure class: tool_error
++- Severity: must_fix
++- Prevention layer: honest manual default plus adapter-surface inheritance regression
++
++## Root Cause
++TBD
++
++## Contributing Factors
++- TBD
+\ No newline at end of file
+diff --git a/failures/CASE-0008_agent-adapter-defaults-misattribute-non/evidence.md b/failures/CASE-0008_agent-adapter-defaults-misattribute-non/evidence.md
+new file mode 100644
+index 0000000..d309c14
+--- /dev/null
++++ b/failures/CASE-0008_agent-adapter-defaults-misattribute-non/evidence.md
+@@ -0,0 +1,3 @@
++# Evidence
++
++- TBD
+\ No newline at end of file
+diff --git a/failures/CASE-0008_agent-adapter-defaults-misattribute-non/expected.md b/failures/CASE-0008_agent-adapter-defaults-misattribute-non/expected.md
+new file mode 100644
+index 0000000..4a6dc8e
+--- /dev/null
++++ b/failures/CASE-0008_agent-adapter-defaults-misattribute-non/expected.md
+@@ -0,0 +1,3 @@
++# Expected Behavior
++
++Unknown runs use manual; selected adapters inherit their own surface.
+\ No newline at end of file
+diff --git a/failures/CASE-0008_agent-adapter-defaults-misattribute-non/failure.json b/failures/CASE-0008_agent-adapter-defaults-misattribute-non/failure.json
+new file mode 100644
+index 0000000..419f26e
+--- /dev/null
++++ b/failures/CASE-0008_agent-adapter-defaults-misattribute-non/failure.json
+@@ -0,0 +1,17 @@
++{
++    "case_id":  "CASE-0008",
++    "created_at":  "2026-07-09T22:52:44-04:00",
++    "resolved_at":  "2026-07-09T22:53:20-04:00",
++    "machine":  "windows",
++    "linked_run":  "2026-07-09_1953_independent-review-of-the-v1",
++    "repo":  "C:/Users/PC/agentic-workflow",
++    "repo_name":  "agentic-workflow",
++    "commit_or_branch":  "master",
++    "summary":  "Agent adapter defaults misattribute non-Claude runs",
++    "failure_class":  "tool_error",
++    "severity":  "must_fix",
++    "repro_command":  "new_run.ps1 -AgentId codex without -AgentSurface records surface claude-code",
++    "status":  "fixed",
++    "prevention_layer":  "honest adapter defaults and inheritance regression",
++    "regression_test":  "tests/run_tests.ps1::agent metadata"
++}
+\ No newline at end of file
+diff --git a/failures/CASE-0008_agent-adapter-defaults-misattribute-non/fix.md b/failures/CASE-0008_agent-adapter-defaults-misattribute-non/fix.md
+new file mode 100644
+index 0000000..f050e86
+--- /dev/null
++++ b/failures/CASE-0008_agent-adapter-defaults-misattribute-non/fix.md
+@@ -0,0 +1,17 @@
++# Fix
++
++## Proposed Fix
++TBD
++
++## Applied Fix
++TBD
++
++## Verification
++TBD
++
++## Resolution (2026-07-09T22:53:20-04:00)
++- Status: fixed
++- Regression test: tests/run_tests.ps1::agent metadata
++- Prevention layer: honest adapter defaults and inheritance regression
++
++Default unknown runs to manual and inherit AgentSurface from AgentId.
+\ No newline at end of file
+diff --git a/failures/CASE-0008_agent-adapter-defaults-misattribute-non/prompt.md b/failures/CASE-0008_agent-adapter-defaults-misattribute-non/prompt.md
+new file mode 100644
+index 0000000..36699a3
+--- /dev/null
++++ b/failures/CASE-0008_agent-adapter-defaults-misattribute-non/prompt.md
+@@ -0,0 +1,11 @@
++# Prompt / Situation
++
++Agent adapter defaults misattribute non-Claude runs
++
++## Linked Run
++2026-07-09_1953_independent-review-of-the-v1
++
++## Repo
++- Machine: windows
++- Path: C:\Users\PC\agentic-workflow
++- Commit/branch: master
+\ No newline at end of file
+diff --git a/failures/CASE-0008_agent-adapter-defaults-misattribute-non/regression.md b/failures/CASE-0008_agent-adapter-defaults-misattribute-non/regression.md
+new file mode 100644
+index 0000000..00f968a
+--- /dev/null
++++ b/failures/CASE-0008_agent-adapter-defaults-misattribute-non/regression.md
+@@ -0,0 +1,10 @@
++# Regression
++
++## Regression Test
++TBD
++
++## Failing-First Evidence
++TBD
++
++## Passing Evidence
++TBD
+\ No newline at end of file
+diff --git a/failures/CASE-0008_agent-adapter-defaults-misattribute-non/repro.md b/failures/CASE-0008_agent-adapter-defaults-misattribute-non/repro.md
+new file mode 100644
+index 0000000..d46da5b
+--- /dev/null
++++ b/failures/CASE-0008_agent-adapter-defaults-misattribute-non/repro.md
+@@ -0,0 +1,10 @@
++# Reproduction
++
++## Command
++
++```powershell
++new_run.ps1 -AgentId codex without -AgentSurface records surface claude-code
++```
++
++## Manual Steps
++- TBD
+\ No newline at end of file
+diff --git a/failures/CASE-0009_bom-less-utf-8-git-metadata-is-decoded/actual.md b/failures/CASE-0009_bom-less-utf-8-git-metadata-is-decoded/actual.md
+new file mode 100644
+index 0000000..1fc3727
+--- /dev/null
++++ b/failures/CASE-0009_bom-less-utf-8-git-metadata-is-decoded/actual.md
+@@ -0,0 +1,3 @@
++# Actual Behavior
++
++PowerShell 5.1 changed cafe-accent to mojibake in run records.
+\ No newline at end of file
+diff --git a/failures/CASE-0009_bom-less-utf-8-git-metadata-is-decoded/classification.md b/failures/CASE-0009_bom-less-utf-8-git-metadata-is-decoded/classification.md
+new file mode 100644
+index 0000000..2b29095
+--- /dev/null
++++ b/failures/CASE-0009_bom-less-utf-8-git-metadata-is-decoded/classification.md
+@@ -0,0 +1,11 @@
++# Classification
++
++- Failure class: environment_platform_issue
++- Severity: must_fix
++- Prevention layer: explicit UTF-8 native process capture and JSON decoding regressions
++
++## Root Cause
++TBD
++
++## Contributing Factors
++- TBD
+\ No newline at end of file
+diff --git a/failures/CASE-0009_bom-less-utf-8-git-metadata-is-decoded/evidence.md b/failures/CASE-0009_bom-less-utf-8-git-metadata-is-decoded/evidence.md
+new file mode 100644
+index 0000000..d309c14
+--- /dev/null
++++ b/failures/CASE-0009_bom-less-utf-8-git-metadata-is-decoded/evidence.md
+@@ -0,0 +1,3 @@
++# Evidence
++
++- TBD
+\ No newline at end of file
+diff --git a/failures/CASE-0009_bom-less-utf-8-git-metadata-is-decoded/expected.md b/failures/CASE-0009_bom-less-utf-8-git-metadata-is-decoded/expected.md
+new file mode 100644
+index 0000000..6db93dd
+--- /dev/null
++++ b/failures/CASE-0009_bom-less-utf-8-git-metadata-is-decoded/expected.md
+@@ -0,0 +1,3 @@
++# Expected Behavior
++
++Non-ASCII branch and file names round-trip unchanged.
+\ No newline at end of file
+diff --git a/failures/CASE-0009_bom-less-utf-8-git-metadata-is-decoded/failure.json b/failures/CASE-0009_bom-less-utf-8-git-metadata-is-decoded/failure.json
+new file mode 100644
+index 0000000..8eb38db
+--- /dev/null
++++ b/failures/CASE-0009_bom-less-utf-8-git-metadata-is-decoded/failure.json
+@@ -0,0 +1,17 @@
++{
++    "case_id":  "CASE-0009",
++    "created_at":  "2026-07-09T22:52:56-04:00",
++    "resolved_at":  "2026-07-09T22:53:22-04:00",
++    "machine":  "windows",
++    "linked_run":  "2026-07-09_1953_independent-review-of-the-v1",
++    "repo":  "C:/Users/PC/agentic-workflow",
++    "repo_name":  "agentic-workflow",
++    "commit_or_branch":  "master",
++    "summary":  "BOM-less UTF-8 Git metadata is decoded as ANSI",
++    "failure_class":  "environment_platform_issue",
++    "severity":  "must_fix",
++    "repro_command":  "tests/run_tests.ps1 R21 R22 with accented branch and filename",
++    "status":  "fixed",
++    "prevention_layer":  "explicit UTF-8 process and JSON decoding",
++    "regression_test":  "tests/run_tests.ps1::R21,R22"
++}
+\ No newline at end of file
+diff --git a/failures/CASE-0009_bom-less-utf-8-git-metadata-is-decoded/fix.md b/failures/CASE-0009_bom-less-utf-8-git-metadata-is-decoded/fix.md
+new file mode 100644
+index 0000000..17451fc
+--- /dev/null
++++ b/failures/CASE-0009_bom-less-utf-8-git-metadata-is-decoded/fix.md
+@@ -0,0 +1,17 @@
++# Fix
++
++## Proposed Fix
++TBD
++
++## Applied Fix
++TBD
++
++## Verification
++TBD
++
++## Resolution (2026-07-09T22:53:22-04:00)
++- Status: fixed
++- Regression test: tests/run_tests.ps1::R21,R22
++- Prevention layer: explicit UTF-8 process and JSON decoding
++
++Decode git stdout and BOM-less JSON explicitly as UTF-8.
+\ No newline at end of file
+diff --git a/failures/CASE-0009_bom-less-utf-8-git-metadata-is-decoded/prompt.md b/failures/CASE-0009_bom-less-utf-8-git-metadata-is-decoded/prompt.md
+new file mode 100644
+index 0000000..d9f2086
+--- /dev/null
++++ b/failures/CASE-0009_bom-less-utf-8-git-metadata-is-decoded/prompt.md
+@@ -0,0 +1,11 @@
++# Prompt / Situation
++
++BOM-less UTF-8 Git metadata is decoded as ANSI
++
++## Linked Run
++2026-07-09_1953_independent-review-of-the-v1
++
++## Repo
++- Machine: windows
++- Path: C:\Users\PC\agentic-workflow
++- Commit/branch: master
+\ No newline at end of file
+diff --git a/failures/CASE-0009_bom-less-utf-8-git-metadata-is-decoded/regression.md b/failures/CASE-0009_bom-less-utf-8-git-metadata-is-decoded/regression.md
+new file mode 100644
+index 0000000..00f968a
+--- /dev/null
++++ b/failures/CASE-0009_bom-less-utf-8-git-metadata-is-decoded/regression.md
+@@ -0,0 +1,10 @@
++# Regression
++
++## Regression Test
++TBD
++
++## Failing-First Evidence
++TBD
++
++## Passing Evidence
++TBD
+\ No newline at end of file
+diff --git a/failures/CASE-0009_bom-less-utf-8-git-metadata-is-decoded/repro.md b/failures/CASE-0009_bom-less-utf-8-git-metadata-is-decoded/repro.md
+new file mode 100644
+index 0000000..6c9288a
+--- /dev/null
++++ b/failures/CASE-0009_bom-less-utf-8-git-metadata-is-decoded/repro.md
+@@ -0,0 +1,10 @@
++# Reproduction
++
++## Command
++
++```powershell
++tests/run_tests.ps1 R21 R22 with accented branch and filename
++```
++
++## Manual Steps
++- TBD
+\ No newline at end of file
+diff --git a/scripts/_common.ps1 b/scripts/_common.ps1
+index bfbd198..ff42a44 100644
+--- a/scripts/_common.ps1
++++ b/scripts/_common.ps1
+@@ -83,11 +83,60 @@ function Set-Prop {
+ # --- BOM-less UTF-8 output --------------------------------------------------------------
+ 
+ function Write-TextFile {
++    # Atomic: write a sibling temp file, then swap it in. A process killed mid-write can no
++    # longer leave a truncated run.json/failure.json behind (CASE-0004 family). The temp file
++    # sits in the destination directory so the swap stays on one volume.
+     param(
+         [Parameter(Mandatory = $true)][string]$Path,
+         [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Content
+     )
+-    [System.IO.File]::WriteAllText($Path, $Content, $script:Utf8NoBom)
++    $tmp = "{0}.tmp.{1}" -f $Path, $PID
++    [System.IO.File]::WriteAllText($tmp, $Content, $script:Utf8NoBom)
++    try {
++        if (Test-Path -LiteralPath $Path) {
++            [System.IO.File]::Replace($tmp, $Path, $null)
++        }
++        else {
++            [System.IO.File]::Move($tmp, $Path)
++        }
++    }
++    catch {
++        # Fallback (e.g. destination appeared between the check and the Move): plain copy.
++        [System.IO.File]::Copy($tmp, $Path, $true)
++        Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue
++    }
++}
++
++# --- Cross-process serialization for read-modify-write sections --------------------------
++
++function Invoke-WithFileLock {
++    # Serialize concurrent read-modify-write of a shared file (run.json, failures/ numbering)
++    # across processes. Parallel sessions writing the same record otherwise lose updates
++    # silently (last writer wins - CASE-0004/0005). Keyed on the path, machine-local.
++    # NOTE: the block runs via the call operator, so assignments inside it stay local -
++    # return what the caller needs.
++    param(
++        [Parameter(Mandatory = $true)][string]$LockKey,
++        [Parameter(Mandatory = $true)][scriptblock]$LockBody,
++        [int]$LockTimeoutMs = 15000
++    )
++    $lockMd5 = [System.Security.Cryptography.MD5]::Create()
++    try {
++        $lockHash = -join ($lockMd5.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($LockKey.ToLowerInvariant())) | ForEach-Object { $_.ToString("x2") })
++    }
++    finally { $lockMd5.Dispose() }
++    $lockMutex = New-Object System.Threading.Mutex($false, ("Local\agentic-workflow-" + $lockHash))
++    $lockAcquired = $false
++    try {
++        try { $lockAcquired = $lockMutex.WaitOne($LockTimeoutMs) }
++        catch [System.Threading.AbandonedMutexException] { $lockAcquired = $true } # prior holder died; lock is ours
++        if (-not $lockAcquired) { throw "Timed out waiting for lock on $LockKey" }
++        & $LockBody
++    }
++    finally {
++        if ($lockAcquired) { [void]$lockMutex.ReleaseMutex() }
++        $lockMutex.Dispose()
++    }
+ }
+ 
+ function Write-JsonFile {
+@@ -104,7 +153,9 @@ function Read-JsonFile {
+     param([Parameter(Mandatory = $true)][string]$Path)
+ 
+     if (-not (Test-Path -LiteralPath $Path)) { return $null }
+-    return (Get-Content -Raw -LiteralPath $Path | ConvertFrom-Json)
++    # Records are intentionally BOM-less UTF-8. Windows PowerShell 5.1 treats a BOM-less
++    # Get-Content read as the active ANSI codepage, so decode explicitly before parsing.
++    return ([System.IO.File]::ReadAllText($Path, $script:Utf8NoBom) | ConvertFrom-Json)
+ }
+ 
+ function Add-JsonlEvent {
+@@ -120,27 +171,95 @@ function Add-JsonlEvent {
+ 
+ # --- Native git (no Select-Object early-stop; no stderr-as-terminating-error) -----------
+ 
+-function Invoke-GitLine {
+-    # Run git and return its first stdout line, or "" on any failure. Captures into an array
+-    # (no pipeline early-stop that can reset $LASTEXITCODE on older PS builds) and forces a
+-    # non-terminating error preference around the call so 2>$null stderr can't throw.
++function ConvertTo-NativeArgument {
++    # Quote one argument using the Windows CommandLineToArgvW / C runtime rules used by
++    # ProcessStartInfo.Arguments. This keeps repo paths with spaces and literal quotes intact.
++    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Value)
++
++    if ($Value.Length -gt 0 -and $Value -notmatch '[\s"]') { return $Value }
++
++    $builder = New-Object System.Text.StringBuilder
++    [void]$builder.Append('"')
++    $slashes = 0
++    foreach ($ch in $Value.ToCharArray()) {
++        if ($ch -eq '\') {
++            $slashes += 1
++            continue
++        }
++        if ($ch -eq '"') {
++            if ($slashes -gt 0) { [void]$builder.Append(('\' * ($slashes * 2))) }
++            [void]$builder.Append('\"')
++            $slashes = 0
++            continue
++        }
++        if ($slashes -gt 0) { [void]$builder.Append(('\' * $slashes)); $slashes = 0 }
++        [void]$builder.Append($ch)
++    }
++    # Backslashes before the closing quote must be doubled.
++    if ($slashes -gt 0) { [void]$builder.Append(('\' * ($slashes * 2))) }
++    [void]$builder.Append('"')
++    return $builder.ToString()
++}
++
++function Invoke-GitLines {
++    # Run git and return stdout decoded explicitly as UTF-8, or @() on failure. Windows
++    # PowerShell 5.1 decodes `& git` pipeline output through the host/OEM codepage even when
++    # [Console]::OutputEncoding is changed; ProcessStartInfo.StandardOutputEncoding avoids
++    # that host-dependent round-trip and preserves branch/file names such as cafe-with-accent.
+     param(
+         [Parameter(Mandatory = $true)][AllowEmptyString()][string]$RepoPath,
+         [Parameter(Mandatory = $true)][string[]]$GitArgs
+     )
+     if ([string]::IsNullOrWhiteSpace($RepoPath) -or -not (Test-Path -LiteralPath $RepoPath)) {
+-        return ""
++        return @()
+     }
+-    $prev = $ErrorActionPreference
+-    $ErrorActionPreference = "SilentlyContinue"
++    $process = $null
+     try {
+-        $out = @(& git -C $RepoPath @GitArgs 2>$null)
+-        $code = $LASTEXITCODE
++        $git = Get-Command git -ErrorAction Stop
++        $allArgs = @('-C', $RepoPath) + @($GitArgs)
++
++        $start = New-Object System.Diagnostics.ProcessStartInfo
++        $start.FileName = $git.Source
++        $start.Arguments = (($allArgs | ForEach-Object { ConvertTo-NativeArgument -Value ([string]$_) }) -join ' ')
++        $start.UseShellExecute = $false
++        $start.CreateNoWindow = $true
++        $start.RedirectStandardOutput = $true
++        $start.RedirectStandardError = $true
++        $start.StandardOutputEncoding = $script:Utf8NoBom
++        $start.StandardErrorEncoding = $script:Utf8NoBom
++
++        $process = New-Object System.Diagnostics.Process
++        $process.StartInfo = $start
++        if (-not $process.Start()) { return @() }
++
++        # Drain both streams asynchronously so a noisy git error cannot fill stderr and deadlock.
++        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
++        $stderrTask = $process.StandardError.ReadToEndAsync()
++        $process.WaitForExit()
++        $stdout = $stdoutTask.GetAwaiter().GetResult()
++        $null = $stderrTask.GetAwaiter().GetResult()
++        if ($process.ExitCode -ne 0 -or [string]::IsNullOrEmpty($stdout)) { return @() }
++
++        $stdout = $stdout.TrimEnd([char[]]@("`r", "`n"))
++        if ($stdout.Length -eq 0) { return @() }
++        return @($stdout -split "`r?`n")
++    }
++    catch {
++        return @()
+     }
+     finally {
+-        $ErrorActionPreference = $prev
++        if ($null -ne $process) { $process.Dispose() }
+     }
+-    if ($code -eq 0 -and $out.Count -gt 0 -and -not [string]::IsNullOrWhiteSpace([string]$out[0])) {
++}
++
++function Invoke-GitLine {
++    # First stdout line of a git call, or "" on any failure.
++    param(
++        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$RepoPath,
++        [Parameter(Mandatory = $true)][string[]]$GitArgs
++    )
++    $out = @(Invoke-GitLines -RepoPath $RepoPath -GitArgs $GitArgs)
++    if ($out.Count -gt 0 -and -not [string]::IsNullOrWhiteSpace([string]$out[0])) {
+         return ([string]$out[0]).Trim()
+     }
+     return ""
+@@ -154,7 +273,11 @@ function Get-GitBranch {
+ # --- Active-run resolution (so callers don't retype the long run ID) --------------------
+ 
+ function Get-ActiveRunId {
+-    # Newest run whose status is still in_progress. Empty string when there is none.
++    # The single in-progress run. Empty string when there is none; THROWS when more than one
++    # run is in progress - auto-detect must never silently complete/update a parallel
++    # session's record (CASE-0007: it shipped the wrong repo's run). created_at is compared
++    # as a parsed [DateTimeOffset] (UTC instant), not as a string: local-time strings with
++    # mixed UTC offsets (DST fall-back, cross-machine records) sort wrong lexicographically.
+     param([Parameter(Mandatory = $true)][string]$RunsDir)
+ 
+     if (-not (Test-Path -LiteralPath $RunsDir)) { return "" }
+@@ -164,7 +287,9 @@ function Get-ActiveRunId {
+             try {
+                 $r = Read-JsonFile $rj
+                 if ((Get-Prop $r "status") -eq "in_progress") {
+-                    [pscustomobject]@{ Id = $_.Name; Created = [string](Get-Prop $r "created_at") }
++                    $created = [System.DateTimeOffset]::MinValue
++                    try { $created = [System.DateTimeOffset]::Parse([string](Get-Prop $r "created_at")) } catch { }
++                    [pscustomobject]@{ Id = $_.Name; Created = $created }
+                 }
+             }
+             catch { }
+@@ -172,5 +297,10 @@ function Get-ActiveRunId {
+     } | Where-Object { $_ })
+     if ($candidates.Count -eq 0) { return "" }
+     # Id is a deterministic secondary key so ties on identical created_at are stable.
+-    return (@($candidates | Sort-Object Created, Id -Descending)[0]).Id
++    $sorted = @($candidates | Sort-Object Created, Id -Descending)
++    if ($sorted.Count -gt 1) {
++        $list = (@($sorted | ForEach-Object { $_.Id }) -join ", ")
++        throw "Multiple in-progress runs - pass -RunId explicitly. Candidates (newest first): $list"
++    }
++    return $sorted[0].Id
+ }
+diff --git a/scripts/capture_failure.ps1 b/scripts/capture_failure.ps1
+index 74005eb..fea778e 100644
+--- a/scripts/capture_failure.ps1
++++ b/scripts/capture_failure.ps1
+@@ -57,18 +57,6 @@ $metricsDir = Join-Path $dataRoot "metrics"
+ $runsDir = Join-Path $dataRoot "runs"
+ New-Item -ItemType Directory -Force -Path $failuresDir, $metricsDir | Out-Null
+ 
+-$caseNumbers = @()
+-Get-ChildItem -LiteralPath $failuresDir -Directory -Filter "CASE-*" -ErrorAction SilentlyContinue | ForEach-Object {
+-    if ($_.Name -match "^CASE-(\d+)(?:_|$)") {
+-        $caseNumbers += [int]$Matches[1]
+-    }
+-}
+-$nextNumber = 1
+-if ($caseNumbers.Count -gt 0) {
+-    # Measure-Object.Maximum returns [double] in PS 5.1; cast so "{0:D4}" (integral-only) works.
+-    $nextNumber = [int](($caseNumbers | Measure-Object -Maximum).Maximum) + 1
+-}
+-
+ $slug = New-Slug -Text $Summary -Fallback "failure"
+ $repoPath = ConvertTo-RepoPath $Repo
+ if ([string]::IsNullOrWhiteSpace($CommitOrBranch)) {
+@@ -78,21 +66,39 @@ if ([string]::IsNullOrWhiteSpace($CommitOrBranch)) {
+     $CommitOrBranch = "unknown"
+ }
+ 
+-# Claim the case directory atomically; bump the number on collision.
+-$caseId = "CASE-{0:D4}" -f $nextNumber
+-$caseDir = Join-Path $failuresDir ("{0}_{1}" -f $caseId, $slug)
+-while ($true) {
+-    try {
+-        New-Item -ItemType Directory -Path $caseDir -ErrorAction Stop | Out-Null
+-        break
++# Scan + claim under the failures-dir lock: the directory claim alone only collides on
++# IDENTICAL slugs, so two parallel captures with different summaries both got the same
++# CASE number (CASE-0005). The collision loop stays as an in-lock backstop.
++$allocation = Invoke-WithFileLock -LockKey $failuresDir -LockBody {
++    $caseNumbers = @()
++    Get-ChildItem -LiteralPath $failuresDir -Directory -Filter "CASE-*" -ErrorAction SilentlyContinue | ForEach-Object {
++        if ($_.Name -match "^CASE-(\d+)(?:_|$)") {
++            $caseNumbers += [int]$Matches[1]
++        }
+     }
+-    catch {
+-        $nextNumber += 1
+-        $caseId = "CASE-{0:D4}" -f $nextNumber
+-        $caseDir = Join-Path $failuresDir ("{0}_{1}" -f $caseId, $slug)
+-        if ($nextNumber -gt 100000) { throw "Could not allocate a unique case ID under $failuresDir" }
++    $nextNumber = 1
++    if ($caseNumbers.Count -gt 0) {
++        # Measure-Object.Maximum returns [double] in PS 5.1; cast so "{0:D4}" (integral-only) works.
++        $nextNumber = [int](($caseNumbers | Measure-Object -Maximum).Maximum) + 1
+     }
++    $caseId = "CASE-{0:D4}" -f $nextNumber
++    $caseDir = Join-Path $failuresDir ("{0}_{1}" -f $caseId, $slug)
++    while ($true) {
++        try {
++            New-Item -ItemType Directory -Path $caseDir -ErrorAction Stop | Out-Null
++            break
++        }
++        catch {
++            $nextNumber += 1
++            $caseId = "CASE-{0:D4}" -f $nextNumber
++            $caseDir = Join-Path $failuresDir ("{0}_{1}" -f $caseId, $slug)
++            if ($nextNumber -gt 100000) { throw "Could not allocate a unique case ID under $failuresDir" }
++        }
++    }
++    [pscustomobject]@{ CaseId = $caseId; CaseDir = $caseDir }
+ }
++$caseId = $allocation.CaseId
++$caseDir = $allocation.CaseDir
+ 
+ $createdAt = Get-Date -Format "yyyy-MM-ddTHH:mm:sszzz"
+ $repoName = Split-Path -Leaf $repoPath
+@@ -203,17 +209,23 @@ TBD
+ TBD
+ "@
+ 
+-# Link the case back into its run.json (StrictMode-safe: property may be absent on older records).
++# Link the case back into its run.json (StrictMode-safe: property may be absent on older
++# records; locked: a parallel update_run on the same run.json must not lose this link).
+ if (-not [string]::IsNullOrWhiteSpace($LinkedRun)) {
+     $runJson = Join-Path (Join-Path $runsDir $LinkedRun) "run.json"
+     if (Test-Path -LiteralPath $runJson) {
+-        $run = Read-JsonFile $runJson
+-        $linkedFailures = @(Get-Prop $run "linked_failures" @())
+-        if ($linkedFailures -notcontains $caseId) {
+-            $linkedFailures += $caseId
++        Invoke-WithFileLock -LockKey $runJson -LockBody {
++            $run = Read-JsonFile $runJson
++            $linkedFailures = @(Get-Prop $run "linked_failures" @())
++            if ($linkedFailures -notcontains $caseId) {
++                $linkedFailures += $caseId
++            }
++            Set-Prop $run "linked_failures" (@($linkedFailures))
++            Write-JsonFile -Path $runJson -Object $run
+         }
+-        Set-Prop $run "linked_failures" (@($linkedFailures))
+-        Write-JsonFile -Path $runJson -Object $run
++    }
++    else {
++        Write-Warning ("-LinkedRun '{0}' not found under {1}; case created without a run link." -f $LinkedRun, $runsDir)
+     }
+ }
+ 
+@@ -229,3 +241,4 @@ Add-JsonlEvent -Path (Join-Path $metricsDir "runs.jsonl") -Event ([ordered]@{
+ 
+ Write-Output ("Created failure case: {0}" -f $caseId)
+ Write-Output $caseDir
++exit 0
+diff --git a/scripts/complete_run.ps1 b/scripts/complete_run.ps1
+index 52cbdfb..842813e 100644
+--- a/scripts/complete_run.ps1
++++ b/scripts/complete_run.ps1
+@@ -47,20 +47,15 @@ function Get-ChangedFiles {
+     param([Parameter(Mandatory = $true)][string]$RepoPath)
+ 
+     $files = @()
+-    $prev = $ErrorActionPreference
+-    $ErrorActionPreference = "SilentlyContinue"
+-    try {
+-        $lines = @(& git -c core.quotePath=false -C $RepoPath status --porcelain=v1 2>$null)
+-        foreach ($line in $lines) {
+-            if ([string]::IsNullOrWhiteSpace($line) -or $line.Length -lt 4) { continue }
+-            $path = $line.Substring(3).Trim()
+-            if ($path -match " -> ") { $path = @($path -split " -> ")[-1] }
+-            $path = $path.Trim('"')
+-            if (-not [string]::IsNullOrWhiteSpace($path)) { $files += $path }
+-        }
+-    }
+-    finally {
+-        $ErrorActionPreference = $prev
++    # Invoke-GitLines decodes stdout as UTF-8; a plain & git call under PS 5.1 decodes via the
++    # console OEM codepage and stores mojibake filenames in run.json (same class as R14).
++    $lines = @(Invoke-GitLines -RepoPath $RepoPath -GitArgs @("-c", "core.quotePath=false", "status", "--porcelain=v1"))
++    foreach ($line in $lines) {
++        if ([string]::IsNullOrWhiteSpace($line) -or $line.Length -lt 4) { continue }
++        $path = $line.Substring(3).Trim()
++        if ($path -match " -> ") { $path = @($path -split " -> ")[-1] }
++        $path = $path.Trim('"')
++        if (-not [string]::IsNullOrWhiteSpace($path)) { $files += $path }
+     }
+     return @($files | Sort-Object -Unique)
+ }
+@@ -80,6 +75,7 @@ function Get-RepoDiff {
+     # reset is needed.
+     param(
+         [Parameter(Mandatory = $true)][string]$RepoPath,
++        [Parameter(Mandatory = $true)][string]$OutFile,
+         [string[]]$ExtraExcludes = @()
+     )
+ 
+@@ -121,10 +117,15 @@ function Get-RepoDiff {
+ 
+         & git -C $RepoPath diff --binary $base --output=$tmp -- "." @excludes 2>$null | Out-Null
+ 
++        # Copy the patch BYTES to the destination - never decode to a string. A changed file
++        # with non-UTF-8 content (e.g. Latin-1) would round-trip through U+FFFD replacement
++        # chars and git apply would reject the patch (CASE-0006).
+         if (Test-Path -LiteralPath $tmp) {
+-            return [System.IO.File]::ReadAllText($tmp, (New-Object System.Text.UTF8Encoding($false)))
++            Copy-Item -LiteralPath $tmp -Destination $OutFile -Force
++        }
++        else {
++            Write-TextFile -Path $OutFile -Content ""
+         }
+-        return ""
+     }
+     finally {
+         if ($indexEnvWasSet) { $env:GIT_INDEX_FILE = $prevIndexEnv }
+@@ -154,51 +155,74 @@ if (-not (Test-Path -LiteralPath $runJson)) {
+     throw "Run not found: $RunId"
+ }
+ 
+-$run = Read-JsonFile $runJson
++# The whole read-modify-write runs under the run.json lock so a parallel update_run (or a
++# second complete) can't interleave and lose fields. Assignments in the block stay local -
++# it returns what the rest of the script needs.
++$state = Invoke-WithFileLock -LockKey $runJson -LockBody {
++    $run = Read-JsonFile $runJson
+ 
+-if ([string]::IsNullOrWhiteSpace($Repo)) {
+-    $Repo = [string](Get-Prop $run "repo")
+-}
+-$repoPath = $Repo.Replace("/", "\")
++    $repoValue = $Repo
++    if ([string]::IsNullOrWhiteSpace($repoValue)) {
++        $repoValue = [string](Get-Prop $run "repo")
++    }
++    # Guard: a legacy run.json may have no repo at all; "" would crash Test-Path binding.
++    $repoPath = ""
++    if (-not [string]::IsNullOrWhiteSpace($repoValue)) {
++        $repoPath = $repoValue.Replace("/", "\")
++    }
++    $repoUsable = (-not [string]::IsNullOrWhiteSpace($repoPath)) -and (Test-Path -LiteralPath $repoPath)
+ 
+-$alreadyComplete = -not [string]::IsNullOrWhiteSpace([string](Get-Prop $run "completed_at"))
+-if ($alreadyComplete -and -not $Force) {
+-    throw "Run $RunId is already completed (status=$(Get-Prop $run 'status'), completed_at=$(Get-Prop $run 'completed_at')). Re-run with -Force to amend."
+-}
++    $alreadyComplete = -not [string]::IsNullOrWhiteSpace([string](Get-Prop $run "completed_at"))
++    if ($alreadyComplete -and -not $Force) {
++        throw "Run $RunId is already completed (status=$(Get-Prop $run 'status'), completed_at=$(Get-Prop $run 'completed_at')). Re-run with -Force to amend."
++    }
+ 
+-$completedAt = Get-Date -Format "yyyy-MM-ddTHH:mm:sszzz"
+-Set-Prop $run "status" $Status
+-if ($alreadyComplete) {
+-    Set-Prop $run "last_amended_at" $completedAt
+-}
+-else {
+-    Set-Prop $run "completed_at" $completedAt
+-}
++    $completedAt = Get-Date -Format "yyyy-MM-ddTHH:mm:sszzz"
++    Set-Prop $run "status" $Status
++    if ($alreadyComplete) {
++        Set-Prop $run "last_amended_at" $completedAt
++    }
++    else {
++        Set-Prop $run "completed_at" $completedAt
++    }
+ 
+-# Backfill branch only if the record never captured one.
+-$existingBranch = [string](Get-Prop $run "branch")
+-if (($existingBranch -eq "" -or $existingBranch -eq "unknown") -and (Test-Path -LiteralPath $repoPath)) {
+-    $detectedBranch = Get-GitBranch $repoPath
+-    if (-not [string]::IsNullOrWhiteSpace($detectedBranch)) { Set-Prop $run "branch" $detectedBranch }
+-}
++    # Backfill branch only if the record never captured one.
++    $existingBranch = [string](Get-Prop $run "branch")
++    if (($existingBranch -eq "" -or $existingBranch -eq "unknown") -and $repoUsable) {
++        $detectedBranch = Get-GitBranch $repoPath
++        if (-not [string]::IsNullOrWhiteSpace($detectedBranch)) { Set-Prop $run "branch" $detectedBranch }
++    }
+ 
+-if (-not [string]::IsNullOrWhiteSpace($FinalOutcome)) { Set-Prop $run "final_outcome" $FinalOutcome }
+-if (-not [string]::IsNullOrWhiteSpace($ReviewerResult)) { Set-Prop $run "reviewer_result" $ReviewerResult }
++    if (-not [string]::IsNullOrWhiteSpace($FinalOutcome)) { Set-Prop $run "final_outcome" $FinalOutcome }
++    if (-not [string]::IsNullOrWhiteSpace($ReviewerResult)) { Set-Prop $run "reviewer_result" $ReviewerResult }
+ 
+-# files_changed: prefer explicit, else auto-detect; union with whatever the record already had.
+-$changedFiles = @($FilesChanged | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+-if ($changedFiles.Count -eq 0 -and (Test-Path -LiteralPath $repoPath)) {
+-    $changedFiles = @(Get-ChangedFiles $repoPath)
++    # files_changed: prefer explicit, else auto-detect; union with whatever the record already had.
++    $changedFiles = @($FilesChanged | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
++    if ($changedFiles.Count -eq 0 -and $repoUsable) {
++        $changedFiles = @(Get-ChangedFiles $repoPath)
++    }
++    $existingFiles = @(Get-Prop $run "files_changed" @())
++    Set-Prop $run "files_changed" (@(@($existingFiles + $changedFiles) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique))
++
++    # evidence_links: merge, never drop existing.
++    $existingLinks = @(Get-Prop $run "evidence_links" @())
++    $newLinks = @($EvidenceLinks | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
++    Set-Prop $run "evidence_links" (@(@($existingLinks + $newLinks) | Select-Object -Unique))
++
++    Write-JsonFile -Path $runJson -Object $run
++
++    [pscustomobject]@{
++        Run             = $run
++        RepoPath        = $repoPath
++        RepoUsable      = $repoUsable
++        CompletedAt     = $completedAt
++        AlreadyComplete = $alreadyComplete
++    }
+ }
+-$existingFiles = @(Get-Prop $run "files_changed" @())
+-Set-Prop $run "files_changed" (@(@($existingFiles + $changedFiles) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique))
+-
+-# evidence_links: merge, never drop existing.
+-$existingLinks = @(Get-Prop $run "evidence_links" @())
+-$newLinks = @($EvidenceLinks | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+-Set-Prop $run "evidence_links" (@(@($existingLinks + $newLinks) | Select-Object -Unique))
+-
+-Write-JsonFile -Path $runJson -Object $run
++$run = $state.Run
++$repoPath = $state.RepoPath
++$completedAt = $state.CompletedAt
++$alreadyComplete = $state.AlreadyComplete
+ 
+ # run.json is the source of truth; log the completion event right after it persists so a later
+ # failure writing the Markdown/diff artifacts can't lose the metric.
+@@ -224,7 +248,7 @@ $evidenceAppend = @"
+ 
+ ## Completion ($completedAt)
+ 
+-$(if ([string]::IsNullOrWhiteSpace($Evidence)) { "_No summary passed to complete_run._" } else { $Evidence })
++$(if ([string]::IsNullOrWhiteSpace($Evidence)) { "_No summary passed to complete_run._" } else { "- " + $Evidence })
+ 
+ ### Evidence links
+ $evidenceLinksMarkdown
+@@ -283,17 +307,19 @@ $Risks
+ $FollowUps
+ "@
+ 
+-if ($CaptureDiff -and (Test-Path -LiteralPath $repoPath)) {
+-    # When capturing the workflow repo itself, exclude this run's own bookkeeping + metrics.
++if ($CaptureDiff -and $state.RepoUsable) {
++    # When capturing the workflow repo itself, exclude ALL run/metrics bookkeeping - not just
++    # this run's. Other sessions' in-progress records and regenerated metrics/summary.* are
++    # churn, not this change; failures/ narratives stay in (they are authored content).
+     $extraExcludes = @()
+     $repoResolved = (Resolve-Path -LiteralPath $repoPath).Path.Replace("\", "/").TrimEnd("/")
+     $dataResolved = (Resolve-Path -LiteralPath $dataRoot).Path.Replace("\", "/").TrimEnd("/")
+     if ($repoResolved -ieq $dataResolved) {
+-        $extraExcludes = @(":(exclude)runs/$RunId", ":(exclude)metrics/runs.jsonl")
++        $extraExcludes = @(":(exclude)runs", ":(exclude)metrics")
+     }
+-    $diffText = Get-RepoDiff -RepoPath $repoPath -ExtraExcludes $extraExcludes
+-    Write-TextFile -Path (Join-Path $runDir "diff.patch") -Content $diffText
++    Get-RepoDiff -RepoPath $repoPath -OutFile (Join-Path $runDir "diff.patch") -ExtraExcludes $extraExcludes
+ }
+ 
+ Write-Output ("Completed run: {0} ({1})" -f $RunId, $Status)
+ Write-Output $runDir
++exit 0
+diff --git a/scripts/new_run.ps1 b/scripts/new_run.ps1
+index 417e7c6..3400035 100644
+--- a/scripts/new_run.ps1
++++ b/scripts/new_run.ps1
+@@ -7,6 +7,9 @@ param(
+ 
+     [string]$Branch = "",
+ 
++    # Worktree path/name when the run happens in a linked worktree (PRD FR1 field).
++    [string]$Worktree = "",
++
+     [ValidateSet("low", "medium", "high")]
+     [string]$RiskLevel = "medium",
+ 
+@@ -15,6 +18,15 @@ param(
+     [ValidateSet("windows", "wsl", "mac")]
+     [string]$Machine = "windows",
+ 
++    [string]$AgentId = "manual",
++
++    [ValidateSet("planner", "executor", "reviewer", "verifier", "classifier", "helper", "mixed")]
++    [string]$AgentRole = "mixed",
++
++    [string]$AgentSurface = "",
++
++    [string]$AgentModel = "",
++
+     [string]$PromptSummary = "",
+ 
+     [string]$StatusPath = "",
+@@ -27,6 +39,12 @@ Set-StrictMode -Version Latest
+ $ErrorActionPreference = "Stop"
+ . (Join-Path $PSScriptRoot "_common.ps1")
+ 
++# Validate inputs BEFORE claiming a run directory, so a bad call can't leave an orphaned
++# ID-claiming run folder behind (the crash used to happen at Split-Path, after the claim).
++if ([string]::IsNullOrWhiteSpace($Repo)) {
++    throw "-Repo must not be empty or whitespace."
++}
++
+ $dataRoot = Resolve-DataRoot -Root $Root -ScriptRoot $PSScriptRoot
+ $runsDir = Join-Path $dataRoot "runs"
+ $metricsDir = Join-Path $dataRoot "metrics"
+@@ -43,6 +61,9 @@ if ([string]::IsNullOrWhiteSpace($Branch)) {
+ # -ValidationPlan binds as a PowerShell array (-ValidationPlan 'a','b'); trim blanks only.
+ # No comma-splitting: commands legitimately contain commas (e.g. pytest -k "a,b").
+ $validationItems = @($ValidationPlan | ForEach-Object { [string]$_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object { $_.Trim() })
++if ([string]::IsNullOrWhiteSpace($AgentId)) { throw "-AgentId must not be empty or whitespace." }
++if ([string]::IsNullOrWhiteSpace($AgentSurface)) { $AgentSurface = $AgentId }
++$agentModelValue = $(if ([string]::IsNullOrWhiteSpace($AgentModel)) { $null } else { $AgentModel })
+ 
+ $createdAt = Get-Date -Format "yyyy-MM-ddTHH:mm:sszzz"
+ $stamp = Get-Date -Format "yyyy-MM-dd_HHmm"
+@@ -81,11 +102,18 @@ $runData = [ordered]@{
+     repo                = $repoPath.Replace("\", "/")
+     repo_name           = $repoName
+     branch              = $Branch
+-    worktree            = $null
++    worktree            = $(if ([string]::IsNullOrWhiteSpace($Worktree)) { $null } else { $Worktree })
+     objective           = $Objective
+     user_prompt_summary = $PromptSummary
+     status_path         = $StatusPath
+     risk_level          = $RiskLevel
++    agent               = [ordered]@{
++        agent_id        = $AgentId
++        agent_role      = $AgentRole
++        surface         = $AgentSurface
++        model           = $agentModelValue
++        adapter_version = "v1"
++    }
+     status              = "in_progress"
+     validation_plan     = @($validationItems)
+     files_changed       = @()
+@@ -112,6 +140,13 @@ $PromptSummary
+ - Status path: $StatusPath
+ - Risk level: $RiskLevel
+ 
++## Agent Adapter
++- Agent ID: $AgentId
++- Role: $AgentRole
++- Surface: $AgentSurface
++- Model: $agentModelValue
++- Adapter contract: adapters/adapter-contract.md
++
+ ## Validation Plan
+ $validationMarkdown
+ "@
+@@ -192,7 +227,13 @@ Add-JsonlEvent -Path (Join-Path $metricsDir "runs.jsonl") -Event ([ordered]@{
+     repo       = $repoPath.Replace("\", "/")
+     objective  = $Objective
+     risk_level = $RiskLevel
++    agent_id   = $AgentId
++    agent_role = $AgentRole
+ })
+ 
+ Write-Output ("Created run: {0}" -f $runId)
+ Write-Output $runDir
++
++# Explicit success code: earlier git probes (e.g. rev-parse in a non-git repo, exit 128) would
++# otherwise leak into $LASTEXITCODE and read as failure to in-process callers.
++exit 0
+diff --git a/scripts/resolve_failure.ps1 b/scripts/resolve_failure.ps1
+index 93dff77..a47bd91 100644
+--- a/scripts/resolve_failure.ps1
++++ b/scripts/resolve_failure.ps1
+@@ -44,14 +44,16 @@ if (-not (Test-Path -LiteralPath $failureJson)) {
+     throw "failure.json missing in $caseDir"
+ }
+ 
+-$failure = Read-JsonFile $failureJson
+ $resolvedAt = Get-Date -Format "yyyy-MM-ddTHH:mm:sszzz"
+-
+-Set-Prop $failure "status" $Status
+-Set-Prop $failure "resolved_at" $resolvedAt
+-if (-not [string]::IsNullOrWhiteSpace($RegressionTest)) { Set-Prop $failure "regression_test" $RegressionTest }
+-if (-not [string]::IsNullOrWhiteSpace($PreventionLayer)) { Set-Prop $failure "prevention_layer" $PreventionLayer }
+-Write-JsonFile -Path $failureJson -Object $failure
++$failure = Invoke-WithFileLock -LockKey $failureJson -LockBody {
++    $failure = Read-JsonFile $failureJson
++    Set-Prop $failure "status" $Status
++    Set-Prop $failure "resolved_at" $resolvedAt
++    if (-not [string]::IsNullOrWhiteSpace($RegressionTest)) { Set-Prop $failure "regression_test" $RegressionTest }
++    if (-not [string]::IsNullOrWhiteSpace($PreventionLayer)) { Set-Prop $failure "prevention_layer" $PreventionLayer }
++    Write-JsonFile -Path $failureJson -Object $failure
++    $failure
++}
+ 
+ # Record the resolution narrative without clobbering the fix.md skeleton's headings.
+ $fixAppend = @"
+@@ -84,3 +86,4 @@ Add-JsonlEvent -Path (Join-Path $metricsDir "runs.jsonl") -Event ([ordered]@{
+ 
+ Write-Output ("Resolved {0}: {1}" -f (Get-Prop $failure "case_id"), $Status)
+ Write-Output $caseDir
++exit 0
+diff --git a/scripts/summarize_metrics.ps1 b/scripts/summarize_metrics.ps1
+index 7544bae..558b217 100644
+--- a/scripts/summarize_metrics.ps1
++++ b/scripts/summarize_metrics.ps1
+@@ -40,10 +40,16 @@ function Test-RunHasEvidence {
+ 
+     $evidenceMd = Join-Path $Record.Dir "evidence.md"
+     if (Test-Path -LiteralPath $evidenceMd) {
+-        $stubs = @("- TBD", "- (none passed)")
++        # Stubs match by PREFIX: "- TBD (fill in later)" is still a stub, not evidence.
++        $stubPrefixes = @("- TBD", "- (none passed)")
+         foreach ($line in (Get-Content -LiteralPath $evidenceMd)) {
+             $t = $line.Trim()
+-            if ($t.StartsWith("- ") -and ($stubs -notcontains $t)) { return $true }
++            if (-not $t.StartsWith("- ")) { continue }
++            $isStub = $false
++            foreach ($p in $stubPrefixes) {
++                if ($t.StartsWith($p)) { $isStub = $true; break }
++            }
++            if (-not $isStub) { return $true }
+         }
+     }
+     return $false
+@@ -67,7 +73,9 @@ $runsWithEvidence = @($runRecords | Where-Object { Test-RunHasEvidence $_ }).Cou
+ $evidenceRate = if ($runCount -gt 0) { [math]::Round(($runsWithEvidence / $runCount) * 100, 1) } else { 0 }
+ 
+ $openFailures = @($failureRecords | Where-Object { (Get-Prop $_.Data "status") -eq "open" }).Count
+-$resolvedFailures = @($failureRecords | Where-Object { (Get-Prop $_.Data "status") -in @("fixed", "wont_fix", "resolved") }).Count
++# wont_fix is closed but NOT resolved - counting it as resolved inflated the metric.
++$resolvedFailures = @($failureRecords | Where-Object { (Get-Prop $_.Data "status") -in @("fixed", "resolved") }).Count
++$wontFixFailures = @($failureRecords | Where-Object { (Get-Prop $_.Data "status") -eq "wont_fix" }).Count
+ $regressionsAdded = @($failureRecords | Where-Object { -not [string]::IsNullOrWhiteSpace([string](Get-Prop $_.Data "regression_test")) }).Count
+ $mustFixFailures = @($failureRecords | Where-Object { (Get-Prop $_.Data "severity") -eq "must_fix" }).Count
+ $escapedBugs = @($failureRecords | Where-Object { (Get-Prop $_.Data "severity") -eq "escaped_bug" }).Count
+@@ -104,6 +112,7 @@ $summary = [ordered]@{
+     failures_total                   = $failureRecords.Count
+     failures_open                    = $openFailures
+     failures_resolved                = $resolvedFailures
++    failures_wont_fix                = $wontFixFailures
+     must_fix_failures                = $mustFixFailures
+     escaped_bugs                     = $escapedBugs
+     regressions_added                = $regressionsAdded
+@@ -135,6 +144,7 @@ Last updated: $updatedAt
+ | Failure cases | $($failureRecords.Count) |
+ | Open failures | $openFailures |
+ | Resolved failures | $resolvedFailures |
++| Won't-fix failures | $wontFixFailures |
+ | Must-fix failures | $mustFixFailures |
+ | Escaped bugs | $escapedBugs |
+ | Regressions added | $regressionsAdded |
+@@ -155,3 +165,4 @@ if ($Json) {
+ else {
+     Write-Output $markdown
+ }
++exit 0
+diff --git a/scripts/update_run.ps1 b/scripts/update_run.ps1
+index 729593d..dce421f 100644
+--- a/scripts/update_run.ps1
++++ b/scripts/update_run.ps1
+@@ -47,12 +47,17 @@ if (-not [string]::IsNullOrWhiteSpace($Command)) {
+ }
+ 
+ if (-not [string]::IsNullOrWhiteSpace($EvidenceLink)) {
+-    $run = Read-JsonFile $runJson
+-    $links = @(Get-Prop $run "evidence_links" @())
+-    if ($links -notcontains $EvidenceLink) {
+-        $links += $EvidenceLink
+-        Set-Prop $run "evidence_links" (@($links))
+-        Write-JsonFile -Path $runJson -Object $run
++    # Serialized: parallel sessions writing the same run.json otherwise lose links to a
++    # last-writer-wins race while every caller exits 0 (CASE-0004).
++    Invoke-WithFileLock -LockKey $runJson -LockBody {
++        $run = Read-JsonFile $runJson
++        $links = @(Get-Prop $run "evidence_links" @())
++        # Case-sensitive: URLs/paths differing only by case are distinct evidence.
++        if ($links -cnotcontains $EvidenceLink) {
++            $links += $EvidenceLink
++            Set-Prop $run "evidence_links" (@($links))
++            Write-JsonFile -Path $runJson -Object $run
++        }
+     }
+     $did += "added evidence link"
+ }
+@@ -62,3 +67,4 @@ if ($did.Count -eq 0) {
+ }
+ 
+ Write-Output ("Updated run {0}: {1}" -f $RunId, ($did -join ", "))
++exit 0
+diff --git a/templates/run-record.md b/templates/run-record.md
+index 7a32ea0..b6ea09f 100644
+--- a/templates/run-record.md
++++ b/templates/run-record.md
+@@ -11,6 +11,9 @@
+ - Repo:
+ - Branch/worktree:
+ - Risk level:
++- Agent ID:
++- Agent role:
++- Agent surface/model:
+ - Status:
+ 
+ ## Objective
+@@ -40,4 +43,3 @@ Commands should also be appended to `commands.jsonl` when the run is active.
+ - 
+ 
+ ## Final Outcome
+-
+diff --git a/tests/run_tests.ps1 b/tests/run_tests.ps1
+index f22f8e3..a5ad871 100644
+--- a/tests/run_tests.ps1
++++ b/tests/run_tests.ps1
+@@ -44,6 +44,12 @@ function Get-FirstByte {
+     return $bytes[0]
+ }
+ 
++function Read-Utf8Json {
++    param([Parameter(Mandatory = $true)][string]$Path)
++    $utf8 = New-Object System.Text.UTF8Encoding($false)
++    return ([System.IO.File]::ReadAllText($Path, $utf8) | ConvertFrom-Json)
++}
++
+ function Last {
+     param($Value)
+     $arr = @($Value)
+@@ -68,6 +74,15 @@ Check "R12 validation item with comma kept intact" (@($run.validation_plan).Coun
+ # R2: no UTF-8 BOM in run.json.
+ Check "R2 run.json has no BOM" ((Get-FirstByte $runJson) -ne 0xEF)
+ Check "new_run records branch" (-not [string]::IsNullOrWhiteSpace([string]$run.branch))
++Check "new_run records honest default agent adapter" ([string]$run.agent.agent_id -eq "manual" -and [string]$run.agent.agent_role -eq "mixed" -and [string]$run.agent.surface -eq "manual")
++
++$agentRoot = Join-Path $Sandbox "_agent-smoke"
++# Omitting -AgentSurface must inherit the selected adapter rather than retaining another
++# adapter's default surface.
++$agentOut = & $newRun -Objective "Adapter metadata smoke" -Repo $Sandbox -AgentId codex -AgentRole executor -AgentModel "gpt-test" -Root $agentRoot
++$agentRunDir = [string](Last $agentOut)
++$agentRun = Get-Content -Raw -LiteralPath (Join-Path $agentRunDir "run.json") | ConvertFrom-Json
++Check "new_run records explicit agent adapter" ([string]$agentRun.agent.agent_id -eq "codex" -and [string]$agentRun.agent.agent_role -eq "executor" -and [string]$agentRun.agent.surface -eq "codex" -and [string]$agentRun.agent.model -eq "gpt-test" -and [string]$agentRun.agent.adapter_version -eq "v1")
+ 
+ # --- update_run: log a command + evidence link ----------------------------------------
+ Write-Host "`n[lifecycle] update_run" -ForegroundColor Cyan
+@@ -229,6 +244,240 @@ else {
+     Write-Host "  SKIP  git not available - diff capture test skipped" -ForegroundColor Yellow
+ }
+ 
++# --- v1.1 hardening regressions ----------------------------------------------------------
++# All non-ASCII test data is built via [char] codes so this source file stays ASCII.
++$eAcute = [char]0xE9
++
++# R15: secret-exclusion globs actually keep secrets out of diff.patch (was never tested;
++# a silent regression here ships credentials into a tracked artifact).
++Write-Host "`n[v1.1] R15 secret exclusion in -CaptureDiff" -ForegroundColor Cyan
++if ($gitOk) {
++    $secRepo = Join-Path $Sandbox "secrets-repo"
++    New-Item -ItemType Directory -Force -Path $secRepo | Out-Null
++    Push-Location $secRepo
++    try {
++        & git init -q 2>$null
++        & git config user.email "t@t" 2>$null
++        & git config user.name "t" 2>$null
++        Set-Content -LiteralPath (Join-Path $secRepo "base.txt") -Value "base" -Encoding UTF8
++        & git add -A 2>$null; & git commit -qm "base" 2>$null
++        Set-Content -LiteralPath (Join-Path $secRepo ".env") -Value "AWS_KEY=SECRETVALUE123" -Encoding UTF8
++        Set-Content -LiteralPath (Join-Path $secRepo "key.pem") -Value "PEMSECRET456" -Encoding UTF8
++        Set-Content -LiteralPath (Join-Path $secRepo "plain.txt") -Value "plain new content" -Encoding UTF8
++    }
++    finally { Pop-Location }
++    $sr = & $newRun -Objective "secret exclusion test" -Repo $secRepo -Root $Sandbox
++    $srId = Split-Path -Leaf ([string](Last $sr))
++    & $completeRun -RunId $srId -Status shipped -Repo $secRepo -CaptureDiff -Root $Sandbox | Out-Null
++    $secPatch = Get-Content -Raw -LiteralPath (Join-Path $Sandbox "runs\$srId\diff.patch")
++    Check "R15 .env content stays out of diff.patch" ($secPatch -notmatch 'SECRETVALUE123')
++    Check "R15 .pem content stays out of diff.patch" ($secPatch -notmatch 'PEMSECRET456')
++    Check "R15 non-secret untracked file is still captured" ($secPatch -match 'plain new content')
++}
++else { Write-Host "  SKIP  git not available" -ForegroundColor Yellow }
++
++# R16: a changed file with non-UTF-8 bytes (Latin-1 0xE9) must not corrupt diff.patch
++# (the old string round-trip turned invalid sequences into U+FFFD; git apply rejected it).
++Write-Host "`n[v1.1] R16 non-UTF-8 file content survives -CaptureDiff" -ForegroundColor Cyan
++if ($gitOk) {
++    $latRepo = Join-Path $Sandbox "latin1-repo"
++    New-Item -ItemType Directory -Force -Path $latRepo | Out-Null
++    Push-Location $latRepo
++    try {
++        & git init -q 2>$null
++        & git config user.email "t@t" 2>$null
++        & git config user.name "t" 2>$null
++        & git config core.autocrlf false 2>$null
++        [System.IO.File]::WriteAllBytes((Join-Path $latRepo "latin1.txt"), [byte[]](0x63, 0x61, 0x66, 0xE9, 0x0A))
++        & git add -A 2>$null; & git commit -qm "base" 2>$null
++        [System.IO.File]::WriteAllBytes((Join-Path $latRepo "latin1.txt"), [byte[]](0x63, 0x61, 0x66, 0xE9, 0x0A, 0xE9, 0xE9, 0x0A))
++    }
++    finally { Pop-Location }
++    $lr = & $newRun -Objective "latin1 diff test" -Repo $latRepo -Root $Sandbox
++    $lrId = Split-Path -Leaf ([string](Last $lr))
++    & $completeRun -RunId $lrId -Status shipped -Repo $latRepo -CaptureDiff -Root $Sandbox | Out-Null
++    $latPatch = Join-Path $Sandbox "runs\$lrId\diff.patch"
++    $latClone = Join-Path $Sandbox "latin1-clone"
++    & git clone -q $latRepo $latClone 2>$null
++    $latOk = $true
++    Push-Location $latClone
++    try { & git apply --check --whitespace=nowarn $latPatch 2>$null; if ($LASTEXITCODE -ne 0) { $latOk = $false } }
++    catch { $latOk = $false }
++    finally { Pop-Location }
++    Check "R16 patch with non-UTF-8 bytes applies cleanly" $latOk
++    $latBytes = [System.IO.File]::ReadAllBytes($latPatch)
++    # A raw 0xE9 byte can only survive if the patch was never decoded to a string
++    # (UTF-8 decoding would have replaced it with the 3-byte U+FFFD sequence).
++    Check "R16 raw 0xE9 byte preserved (no U+FFFD substitution)" ($latBytes -contains 0xE9)
++}
++else { Write-Host "  SKIP  git not available" -ForegroundColor Yellow }
++
++# R17/R18: cross-process races. Parallel update_run calls must not lose evidence links
++# (last-writer-wins on run.json); parallel capture_failure calls must not allocate the
++# same CASE number for different slugs.
++Write-Host "`n[v1.1] R17/R18 cross-process races" -ForegroundColor Cyan
++$raceRoot = Join-Path $Sandbox "race-root"
++New-Item -ItemType Directory -Force -Path $raceRoot | Out-Null
++$rr = & $newRun -Objective "race target run" -Repo $raceRoot -Root $raceRoot
++$raceRunId = Split-Path -Leaf ([string](Last $rr))
++$procs = @()
++1..8 | ForEach-Object {
++    $procs += Start-Process -FilePath "powershell.exe" -WindowStyle Hidden -PassThru -ArgumentList @(
++        "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $updateRun,
++        "-RunId", $raceRunId, "-EvidenceLink", "race-link-$_", "-Root", $raceRoot)
++}
++$procs | ForEach-Object { [void]$_.WaitForExit(90000) }
++$raceRun = Get-Content -Raw -LiteralPath (Join-Path $raceRoot "runs\$raceRunId\run.json") | ConvertFrom-Json
++Check "R17 8 parallel evidence links all survive (no lost update)" (@($raceRun.evidence_links).Count -eq 8) ("got " + @($raceRun.evidence_links).Count)
++
++$procs = @()
++1..5 | ForEach-Object {
++    $procs += Start-Process -FilePath "powershell.exe" -WindowStyle Hidden -PassThru -ArgumentList @(
++        "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $captureFailure,
++        "-Summary", "parallel-case-$_", "-FailureClass", "tool_error", "-Severity", "note", "-Root", $raceRoot)
++}
++$procs | ForEach-Object { [void]$_.WaitForExit(90000) }
++$caseNums = @(Get-ChildItem -LiteralPath (Join-Path $raceRoot "failures") -Directory | ForEach-Object {
++    if ($_.Name -match "^CASE-(\d+)_") { $Matches[1] }
++})
++Check "R18 5 parallel captures allocate 5 distinct case IDs" ((@($caseNums | Sort-Object -Unique).Count -eq 5) -and ($caseNums.Count -eq 5)) ("ids: " + ($caseNums -join ","))
++
++# R20: scripts exit 0 on success even when git probes failed along the way (a non-git repo
++# leaves git's exit 128 in $LASTEXITCODE, which read as failure to in-process callers).
++Write-Host "`n[v1.1] R19/R20 auto-detect strictness + exit codes" -ForegroundColor Cyan
++& $newRun -Objective "second in-progress run" -Repo $raceRoot -Root $raceRoot | Out-Null
++Check "R20 new_run exits 0 in-process on a non-git repo" ($LASTEXITCODE -eq 0) ("LASTEXITCODE=" + $LASTEXITCODE)
++
++# R19: with TWO in-progress runs, auto-detect (no -RunId) must refuse, not guess.
++$ambUpdate = $false
++try { & $updateRun -Command "x" -Root $raceRoot 2>$null | Out-Null } catch { $ambUpdate = $true }
++$ambComplete = $false
++try { & $completeRun -Status shipped -Root $raceRoot 2>$null | Out-Null } catch { $ambComplete = $true }
++Check "R19 update_run refuses ambiguous auto-detect (2 in-progress runs)" $ambUpdate
++Check "R19 complete_run refuses ambiguous auto-detect (2 in-progress runs)" $ambComplete
++
++# R21/R22: non-ASCII branch and file names must land in run.json intact (PS 5.1 decodes git
++# stdout via the OEM codepage unless pinned to UTF-8 - same class as the R14 patch bug).
++Write-Host "`n[v1.1] R21/R22 non-ASCII branch + files_changed" -ForegroundColor Cyan
++if ($gitOk) {
++    # Space in the repo path also exercises ProcessStartInfo argument quoting.
++    $accRepo = Join-Path $Sandbox "accent repo"
++    New-Item -ItemType Directory -Force -Path $accRepo | Out-Null
++    $accBranch = "caf" + $eAcute + "-branch"
++    Push-Location $accRepo
++    try {
++        & git init -q 2>$null
++        & git config user.email "t@t" 2>$null
++        & git config user.name "t" 2>$null
++        Set-Content -LiteralPath (Join-Path $accRepo "base.txt") -Value "base" -Encoding UTF8
++        & git add -A 2>$null; & git commit -qm "base" 2>$null
++        & git checkout -q -b $accBranch 2>$null
++        Set-Content -LiteralPath (Join-Path $accRepo ("r22-caf" + $eAcute + ".txt")) -Value "acc" -Encoding UTF8
++    }
++    finally { Pop-Location }
++    $ar = & $newRun -Objective "accent branch test" -Repo $accRepo -Root $Sandbox
++    $arId = Split-Path -Leaf ([string](Last $ar))
++    $arRun = Read-Utf8Json (Join-Path $Sandbox "runs\$arId\run.json")
++    Check "R21 non-ASCII branch name recorded intact" ($arRun.branch -ceq $accBranch) ("got: " + $arRun.branch)
++    & $completeRun -RunId $arId -Status shipped -Repo $accRepo -Root $Sandbox | Out-Null
++    $arRun = Read-Utf8Json (Join-Path $Sandbox "runs\$arId\run.json")
++    Check "R22 non-ASCII filename in files_changed recorded intact" (@($arRun.files_changed) -ccontains ("r22-caf" + $eAcute + ".txt")) ("got: " + (@($arRun.files_changed) -join " | "))
++}
++else { Write-Host "  SKIP  git not available" -ForegroundColor Yellow }
++
++# R23: bad -Repo fails BEFORE claiming a run directory (no orphaned ID-claiming folder).
++Write-Host "`n[v1.1] R23/R24/R25 guard rails" -ForegroundColor Cyan
++$runCountBefore = @(Get-ChildItem -LiteralPath (Join-Path $Sandbox "runs") -Directory).Count
++$wsThrew = $false
++try { & $newRun -Objective "ws repo" -Repo "   " -Root $Sandbox 2>$null | Out-Null } catch { $wsThrew = $true }
++$runCountAfter = @(Get-ChildItem -LiteralPath (Join-Path $Sandbox "runs") -Directory).Count
++Check "R23 whitespace -Repo throws and leaves no orphan run dir" ($wsThrew -and ($runCountAfter -eq $runCountBefore))
++
++# R24: completing a legacy run.json that has NO repo field must not crash (Test-Path "" bound).
++$noRepoRun = Join-Path $Sandbox "runs\no-repo-run"
++New-Item -ItemType Directory -Force -Path $noRepoRun | Out-Null
++'{"run_id":"no-repo-run","status":"in_progress","created_at":"2026-07-08T09:00:00-04:00"}' | Set-Content -LiteralPath (Join-Path $noRepoRun "run.json") -Encoding UTF8
++$noRepoOk = $true
++try { & $completeRun -RunId "no-repo-run" -Status complete -Root $Sandbox | Out-Null } catch { $noRepoOk = $false }
++Check "R24 complete_run survives run.json without a repo field" $noRepoOk
++
++# R25: -Force amend adds content without clobbering the original completion timestamp.
++$beforeAmend = (Get-Content -Raw -LiteralPath $runJson | ConvertFrom-Json).completed_at
++& $completeRun -RunId $runId -Status shipped -Force -Evidence "amend evidence R25" -Root $Sandbox | Out-Null
++$afterAmend = Get-Content -Raw -LiteralPath $runJson | ConvertFrom-Json
++Check "R25 amend preserves completed_at and stamps last_amended_at" (($afterAmend.completed_at -eq $beforeAmend) -and (-not [string]::IsNullOrWhiteSpace([string]$afterAmend.last_amended_at)))
++Check "R25 amend appends the new evidence text" ((Get-Content -Raw -LiteralPath (Join-Path $runDir "evidence.md")) -match "amend evidence R25")
++
++# R26: metrics pinned against a crafted fixture - exact counts, not -ge/-lt smoke checks.
++Write-Host "`n[v1.1] R26-R31 pinned metrics fixture" -ForegroundColor Cyan
++$fixRoot = Join-Path $Sandbox "fixture-root"
++New-Item -ItemType Directory -Force -Path $fixRoot | Out-Null
++$f1 = & $newRun -Objective "fixture run one" -Repo $fixRoot -Root $fixRoot
++$f1Id = Split-Path -Leaf ([string](Last $f1))
++$f2 = & $newRun -Objective "fixture run two" -Repo $fixRoot -Root $fixRoot
++$f2Id = Split-Path -Leaf ([string](Last $f2))
++& $completeRun -RunId $f1Id -Status shipped -Evidence "fixture evidence green" -Root $fixRoot | Out-Null
++Add-Content -LiteralPath (Join-Path $fixRoot "runs\$f2Id\evidence.md") -Value "- TBD (fill in later)"
++$fc1 = & $captureFailure -Summary "fixture must-fix" -FailureClass test_failure -Severity must_fix -LinkedRun $f1Id -Repo $fixRoot -Root $fixRoot
++& $captureFailure -Summary "fixture note" -FailureClass tool_error -Severity note -Expected "expected text E2" -Actual "actual text A2" -Repo $fixRoot -Root $fixRoot | Out-Null
++& $resolveFailure -CaseId "CASE-0001" -Status wont_fix -Root $fixRoot | Out-Null
++& $summarize -Root $fixRoot | Out-Null
++$fixSum = Get-Content -Raw -LiteralPath (Join-Path $fixRoot "metrics\summary.json") | ConvertFrom-Json
++Check "R26 runs_started pinned (2)" ($fixSum.runs_started -eq 2) ("got " + $fixSum.runs_started)
++Check "R26 runs_shipped pinned (1)" ($fixSum.runs_shipped -eq 1) ("got " + $fixSum.runs_shipped)
++Check "R26 failed_runs pinned (1)" ($fixSum.failed_runs -eq 1) ("got " + $fixSum.failed_runs)
++Check "R26 failures pinned (total 2, open 1, resolved 0, wont_fix 1)" (($fixSum.failures_total -eq 2) -and ($fixSum.failures_open -eq 1) -and ($fixSum.failures_resolved -eq 0) -and ($fixSum.failures_wont_fix -eq 1)) ("got t=" + $fixSum.failures_total + " o=" + $fixSum.failures_open + " r=" + $fixSum.failures_resolved + " w=" + $fixSum.failures_wont_fix)
++Check "R26 evidence rate honest at 50% (-Evidence bullet counts; '- TBD (...)' stub does not)" ($fixSum.validation_evidence_rate_percent -eq 50) ("got " + $fixSum.validation_evidence_rate_percent)
++Check "R26 must_fix pinned (1)" ($fixSum.must_fix_failures -eq 1)
++
++# R27: -Json output is machine-parseable and agrees with summary.json.
++$fixJson = (& $summarize -Root $fixRoot -Json) | Out-String | ConvertFrom-Json
++Check "R27 summarize -Json parses and matches summary.json" ($fixJson.runs_started -eq $fixSum.runs_started -and $fixJson.failures_wont_fix -eq $fixSum.failures_wont_fix)
++
++# R29: evidence-link dedup is case-sensitive (URLs/paths differing by case are distinct).
++& $updateRun -RunId $f2Id -EvidenceLink "Docs/Evidence.md" -Root $fixRoot | Out-Null
++& $updateRun -RunId $f2Id -EvidenceLink "docs/evidence.md" -Root $fixRoot | Out-Null
++$f2Run = Get-Content -Raw -LiteralPath (Join-Path $fixRoot "runs\$f2Id\run.json") | ConvertFrom-Json
++Check "R29 case-differing evidence links both kept" (@($f2Run.evidence_links).Count -eq 2) ("got " + (@($f2Run.evidence_links) -join " | "))
++
++# R30: guard-rail error paths actually throw.
++$noopThrew = $false
++try { & $updateRun -RunId $f2Id -Root $fixRoot 2>$null | Out-Null } catch { $noopThrew = $true }
++$missingThrew = $false
++try { & $completeRun -RunId "nope-123" -Status shipped -Root $fixRoot 2>$null | Out-Null } catch { $missingThrew = $true }
++Check "R30 update_run with nothing to do throws" $noopThrew
++Check "R30 complete_run on a missing run throws" $missingThrew
++
++# R31: capture_failure routes -Expected/-Actual into the case narrative files.
++$fixCase2 = @(Get-ChildItem -LiteralPath (Join-Path $fixRoot "failures") -Directory | Where-Object { $_.Name -like "CASE-0002*" })[0].FullName
++Check "R31 -Expected lands in expected.md" ((Get-Content -Raw -LiteralPath (Join-Path $fixCase2 "expected.md")) -match "expected text E2")
++Check "R31 -Actual lands in actual.md" ((Get-Content -Raw -LiteralPath (Join-Path $fixCase2 "actual.md")) -match "actual text A2")
++
++# R28: self-capture (repo == data root) excludes runs/ + metrics/ bookkeeping from diff.patch.
++Write-Host "`n[v1.1] R28 self-capture bookkeeping exclusion" -ForegroundColor Cyan
++if ($gitOk) {
++    $selfRoot = Join-Path $Sandbox "self-root"
++    New-Item -ItemType Directory -Force -Path $selfRoot | Out-Null
++    Push-Location $selfRoot
++    try {
++        & git init -q 2>$null
++        & git config user.email "t@t" 2>$null
++        & git config user.name "t" 2>$null
++        Set-Content -LiteralPath (Join-Path $selfRoot "base.txt") -Value "base" -Encoding UTF8
++        & git add -A 2>$null; & git commit -qm "base" 2>$null
++        Add-Content -LiteralPath (Join-Path $selfRoot "base.txt") -Value "real change"
++    }
++    finally { Pop-Location }
++    $sf = & $newRun -Objective "self capture test" -Repo $selfRoot -Root $selfRoot
++    $sfId = Split-Path -Leaf ([string](Last $sf))
++    & $summarize -Root $selfRoot | Out-Null
++    & $completeRun -RunId $sfId -Status shipped -Repo $selfRoot -CaptureDiff -Root $selfRoot | Out-Null
++    $selfPatch = Get-Content -Raw -LiteralPath (Join-Path $selfRoot "runs\$sfId\diff.patch")
++    Check "R28 real change captured on self-capture" ($selfPatch -match 'diff --git a/base\.txt')
++    Check "R28 runs/ + metrics/ bookkeeping excluded from self-capture" (($selfPatch -notmatch 'diff --git a/runs/') -and ($selfPatch -notmatch 'diff --git a/metrics/'))
++}
++else { Write-Host "  SKIP  git not available" -ForegroundColor Yellow }
++
+ # --- summary ---------------------------------------------------------------------------
+ Write-Host ("`n{0} passed, {1} failed" -f $script:Pass, $script:Fail) -ForegroundColor $(if ($script:Fail -eq 0) { "Green" } else { "Red" })
+ if ($script:Fail -gt 0) {

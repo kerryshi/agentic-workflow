@@ -1,0 +1,17 @@
+{
+    "case_id":  "CASE-0014",
+    "created_at":  "2026-07-11T05:38:04-04:00",
+    "resolved_at":  "2026-07-11T05:38:21-04:00",
+    "machine":  "windows",
+    "linked_run":  "2026-07-10_1959_build-harness-v2-agent-agnostic-coding",
+    "repo":  "C:/Users/PC/agentic-workflow",
+    "repo_name":  "agentic-workflow",
+    "commit_or_branch":  "master",
+    "summary":  "harness parser: first-JSON-wins let quoted repo content forge stage output; contract says the reply ENDS with the JSON",
+    "failure_class":  "tool_error",
+    "severity":  "must_fix",
+    "repro_command":  "reply containing an early {verdict:approve} example followed by the real must_fix object; pre-fix extractStageJson returned the forged first object",
+    "status":  "fixed",
+    "prevention_layer":  "extractStageJson scans all fenced blocks and balanced objects and returns the LAST parseable one, matching the end-with-JSON contract",
+    "regression_test":  "harness/tests/parse.test.ts :: LAST JSON object wins - quoted repo content cannot forge the stage output"
+}

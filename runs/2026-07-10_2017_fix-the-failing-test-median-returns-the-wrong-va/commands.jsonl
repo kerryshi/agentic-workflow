@@ -1,0 +1,13 @@
+{"at":"2026-07-10T20:17:07-04:00","event":"stage_started","stage":"repro","agent":"claude"}
+{"at":"2026-07-10T20:17:46-04:00","event":"stage_finished","stage":"repro","agent":"claude","ok":true,"tokens":{"input":10,"output":1052,"cache_read":199116,"cache_creation":15783},"cost_usd":0.17109979999999997,"duration_ms":30975}
+{"at":"2026-07-10T20:17:46-04:00","event":"stage_started","stage":"plan","agent":"claude"}
+{"at":"2026-07-10T20:18:23-04:00","event":"stage_finished","stage":"plan","agent":"claude","ok":true,"tokens":{"input":10,"output":1634,"cache_read":204199,"cache_creation":10048},"cost_usd":0.1469667,"duration_ms":31647}
+{"at":"2026-07-10T20:18:23-04:00","event":"run_parked","message":"plan ready — read plan.md, then: harness resume 2026-07-10_2017_fix-the-failing-test-median-returns-the-wrong-va --approve"}
+{"at":"2026-07-10T20:18:50-04:00","event":"plan_approved","by":"kerry"}
+{"at":"2026-07-10T20:18:50-04:00","event":"stage_started","stage":"build","agent":"claude"}
+{"at":"2026-07-10T20:19:24-04:00","event":"stage_finished","stage":"build","agent":"claude","ok":true,"tokens":{"input":10,"output":1085,"cache_read":206110,"cache_creation":9772},"cost_usd":0.138145,"duration_ms":26288}
+{"at":"2026-07-10T20:19:24-04:00","event":"build_summary","summary":"Fixed median() in src/stats.js: for even-length arrays it now returns the average of the two middle elements (sorted[mid-1] and sorted[mid]) instead of unconditionally returning sorted[mid]. Odd-length and empty-array behavior unchanged.","commands_run":["npm test"],"tests_passed":true}
+{"at":"2026-07-10T20:19:24-04:00","event":"stage_started","stage":"review","agent":"claude"}
+{"at":"2026-07-10T20:19:55-04:00","event":"stage_finished","stage":"review","agent":"claude","ok":true,"tokens":{"input":8,"output":701,"cache_read":158590,"cache_creation":15880},"cost_usd":0.15484799999999999,"duration_ms":26209}
+{"at":"2026-07-10T20:19:55-04:00","event":"stage_started","stage":"verify","agent":"claude"}
+{"at":"2026-07-10T20:20:16-04:00","event":"stage_finished","stage":"verify","agent":"claude","ok":true,"tokens":{"input":4,"output":525,"cache_read":76077,"cache_creation":8085},"cost_usd":0.0801181,"duration_ms":18729}

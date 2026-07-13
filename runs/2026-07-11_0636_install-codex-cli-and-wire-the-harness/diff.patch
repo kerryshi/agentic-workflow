@@ -1,0 +1,1309 @@
+diff --git a/HANDOFF.md b/HANDOFF.md
+index 66ae41a..0bf95c3 100644
+--- a/HANDOFF.md
++++ b/HANDOFF.md
+@@ -4,11 +4,11 @@
+ this revamp.
+ **Read first:** this file, then `PRD.md` for the v3 reliability-layer scope. `PLAN.md` is the frozen
+ v2 plan.
+-**Last updated:** 2026-07-10 evening (v2 DIRECTION DECIDED AND BUILT: the flagship is an
+-orchestration system — a pipeline HARNESS that drives swappable coding agents; no agent is the
+-boss. `harness/` (Node/TS) built, tested, and proven e2e on a live claude -p run. See item J.
+-Earlier same day: agents-are-peers direction, item H landed, zed-acp fold-in + Zed conformance
+-PASSED, MANUAL.md added, /plan gained the grill step. See items H–J.)
++**Last updated:** 2026-07-11 (CODEX DRIVER LIVE: Kerry approved the install — codex-cli 0.144.1
++via `npm i -g @openai/codex`, reusing the existing Codex Desktop auth. The harness's codex driver
++is no longer a stub: real `codex exec --json` driver, passed live conformance twice, adversarial
++review's 13 findings all fixed (CASE-0016/0017), vitest 68/68. See item K. Previous: v2 pipeline
++harness built and proven e2e, item J.)
+ 
+ ---
+ 
+@@ -291,6 +291,7 @@ before build.
+ - **Codex driver:** stub reporting unavailable honestly — the CLI is not installed
+   (`~/.codex/` auth exists from Codex Desktop); installing `@openai/codex` is a package-install
+   approval item for Kerry. Engine falls back to fresh-claude review meanwhile.
++  *(RESOLVED 2026-07-11 — Kerry approved; real driver live, see item K.)*
+ - **Independent review (same evening):** 5-lens adversarial workflow raised 41 findings → 28
+   verified real; the serious ones (engine crash-not-park, template-blind fix cycle enabling an
+   ungated build, vacuous verify PASS, forgeable first-JSON parser, skippable approval gate,
+@@ -299,6 +300,44 @@ before build.
+   test), PS harness 64/64. Note: 9 verifier agents died on the MONTHLY SPEND LIMIT
+   (claude.ai/settings/usage); those findings were hand-verified by code inspection instead.
+ 
++**K. Codex CLI installed; harness codex driver live (2026-07-11)** — Kerry's "install the codex
++cli and wire it in" closed the open package-install decision from item J.
++- **Install:** `npm i -g @openai/codex` → codex-cli 0.144.1. Auth reused `~/.codex/auth.json`
++  from Codex Desktop unchanged (`codex login status` → "Logged in using ChatGPT", exit 0).
++- **Conformance spike ran first** (the gate item J set): live `codex exec --json` happy-path and
++  bad-model failure runs captured the real JSONL event shapes on this machine; those transcripts
++  are the verbatim fixtures in `harness/tests/codex-driver.test.ts`.
++- **Driver:** `harness/src/adapters/codex.ts` rewritten from stub to real — brief on stdin,
++  JSONL fold (last `agent_message` wins, matching `extractStageJson`; usage summed per
++  `turn.completed`; `error`/`turn.failed` → honest `ok:false` with usage still reported),
++  `available()` = `codex login status`. On Windows it spawns the package's `bin/codex.js` through
++  node (npm's `.cmd` shim is unspawnable without a shell — CVE-2024-27980 guard; a shell would
++  reopen argv quoting). `HARNESS_CODEX_BIN` override mirrors `HARNESS_CLAUDE_BIN`.
++- **Shared proc plumbing extracted** to `harness/src/adapters/proc.ts` (runProcess/failure/tail,
++  moved verbatim from claude.ts incl. the decode-once UTF-8 fix) so the two drivers can't drift.
++- **Cross-agent model leak fixed in the engine:** `pipeline.model` used to reach EVERY stage's
++  driver, so `--model sonnet` + codex reviewer would have run `codex exec -m sonnet` → exit 1
++  (proven by the spike). Now only the builder's stages get the run model; a different-agent
++  reviewer uses its own default. Regression: engine.test.ts "cross-agent reviewer runs on its
++  own default model".
++- **Checks:** vitest **68/68** (was 47 at HEAD; +16 codex-driver, +4 proc, +1 engine
++  regression), tsc/build clean, v1 PS harness 64/64; **live e2e through compiled dist** ran
++  twice (before and after the review fixes): `available()` true, sandboxed `run()` → `ok:true`,
++  parsed stage JSON, real usage (13,874 in / 14 out / 9,984 cached).
++- **Independent review (same session):** 3-lens adversarial workflow (16 agents), 13 findings
++  raised → 13 survived verification → ALL addressed. The serious ones: sync `spawn` EINVAL
++  (.cmd bins) escaped `runProcess` as a rejection — could crash `harness run` before any run
++  record existed (must-fix → CASE-0016, fixed with regressions); a stage timeout could strand
++  the engine forever on POSIX (orphaned grandchild holds inherited pipes → 'close' never fires;
++  CASE-0017, fixed: process-group kill + grace force-finish). Also fixed: `--model` silently
++  dropped on cross-agent stages (now logged + persisted honestly, regression), quoted-PATH
++  resolution miss (+ `%APPDATA%\npm` fallback), `--safe-perms` now pins `--sandbox read-only`
++  explicitly, no-events failure branch reports real duration, the failure fixture restored to
++  the TRUE verbatim capture (JSON-envelope error strings), `Engine.isAvailable` guards a
++  throwing probe, and this file's own "was 48" miscount corrected to 47.
++- Docs updated: `docs/orchestration.md` codex bullet, `adapters/codex.md` headless-driver
++  section. Recorded as run `2026-07-11_0636_install-codex-cli-and-wire-the-harness`.
++
+ ### How the Kun (ex-Meta L8) workflow maps onto this system
+ | Kun's tool | Simulated here via |
+ |---|---|
+@@ -399,9 +438,9 @@ remembered" was exercised for real by N3; metrics (Phase 4) remain untouched.
+   additions as swaps, not growth).
+ 
+ ## Open decisions for Kerry
+-- **Codex CLI install (blocks the harness's codex driver):** `npm i -g @openai/codex` — it will
+-  likely reuse the existing `~/.codex/auth.json` (Codex Desktop). Package install = your approval.
+-  Until then the harness reviewer falls back to a fresh claude process (recorded honestly).
++- *(Resolved 2026-07-11: **Codex CLI installed and wired** on Kerry's go — codex-cli 0.144.1,
++  auth reused from Codex Desktop as predicted, real driver + conformance + regressions in
++  item K. The harness reviewer fallback now genuinely prefers codex when claude builds.)*
+ - **Adapter rollout: DECIDED 2026-07-10** — agents are peers (no first/second adapter); Codex and
+   Claude Code are both active, local models in scope. Evidence still gates trust: a new agent or
+   model earns higher-risk roles by producing useful records under `adapters/adapter-contract.md`.
+diff --git a/PORTFOLIO.md b/PORTFOLIO.md
+index 8f96e8a..4630e4b 100644
+--- a/PORTFOLIO.md
++++ b/PORTFOLIO.md
+@@ -80,16 +80,18 @@ To avoid collisions:
+   1. **Run a REAL-SIZE task through the v2 harness** (HANDOFF N6) — tests the token-savings
+      hypothesis honestly (the fixture proof showed ~4.3× overhead on a trivial task) and builds
+      the PRD's 10+ run history.
+-  2. Kerry: decide the Codex CLI install (`npm i -g @openai/codex`) so the harness gets a real
+-     second agent; until then reviewer = fresh-claude fallback.
++  2. ✅ DONE 2026-07-11: Codex CLI installed on Kerry's go (codex-cli 0.144.1, Codex Desktop auth
++     reused) — the harness has a real second agent; codex driver live + conformance-proven
++     (HANDOFF item K). Cross-agent review (claude builds, codex reviews) is now real.
+   3. Finish **Phase 2 / N2** (tmux persistent sessions) — the last built-but-unproven capability.
+   4. Prove the never-exercised skills on real work: `/gnhf` and `/lavish` still lack a real run.
+   5. Decide the nightly `/schedule` routine once there's usage data (currently OFF).
+   6. Keep the skill set small/high-signal (9 = top of healthy band; additions are swaps, not growth).
+ - **State:** Phase 0 built + hardened; v1 reliability layer fully-working (64-check PS harness
+-  green; 10 failure cases resolved); agent-agnostic since 2026-07-10 (item I); **v2 pipeline
+-  harness built + proven e2e 2026-07-10** — `harness/` Node/TS, vitest 29/29, live-claude proof
+-  run with park/resume across processes (HANDOFF item J); Mac is a full second workspace.
++  green; 17 failure cases resolved); agent-agnostic since 2026-07-10 (item I); **v2 pipeline
++  harness built + proven e2e 2026-07-10** — `harness/` Node/TS, live-claude proof
++  run with park/resume across processes (HANDOFF item J); **codex driver live 2026-07-11**
++  (vitest 68/68, HANDOFF item K); Mac is a full second workspace.
+   **Live detail: `HANDOFF.md` (this repo).**
+ 
+ ### 3.2 china-garden — restaurant call agent (the end-to-end proof task)
+diff --git a/adapters/codex.md b/adapters/codex.md
+index b8fd7ff..b6f1631 100644
+--- a/adapters/codex.md
++++ b/adapters/codex.md
+@@ -18,6 +18,44 @@ same run/failure/evidence system.
+   -ValidationPlan 'pytest', 'ruff check .'
+ ```
+ 
++## Headless driver (v2 harness)
++
++Installed 2026-07-11: `npm i -g @openai/codex` → codex-cli 0.144.1. Auth reused the existing
++`~/.codex/auth.json` from Codex Desktop (`codex login status` → "Logged in using ChatGPT") — no
++re-login was needed.
++
++`harness/src/adapters/codex.ts` drives it headless:
++
++- Invocation: `codex exec --json --skip-git-repo-check [-m <model>] [--dangerously-bypass-approvals-and-sandbox] -`
++  with the stage brief on **stdin** (never argv — Windows quoting) and spawn `cwd` = target repo.
++- On Windows the npm `codex.cmd` shim can't be spawned without a shell (Node's CVE-2024-27980
++  guard), so the driver runs the package's `bin/codex.js` through node — resolved off PATH
++  (quote-stripped per entry; Windows PATH entries may legally be quoted) with `%APPDATA%\npm` as
++  a fixed fallback candidate. `HARNESS_CODEX_BIN` overrides; a `.js` value runs through this same
++  node, which is how the driver-level tests stub the CLI.
++- `--dangerously-bypass-approvals-and-sandbox` maps the harness's `skipPermissions` default
++  (Kerry's standing full-auto decision); `--safe-perms` pins an EXPLICIT `--sandbox read-only` —
++  codex's *default* sandbox is read-only today but `~/.codex/config.toml` (which Codex Desktop
++  rewrites) can override it, so the guardrail is passed by construction. `codex exec` is
++  non-interactive, so there is no prompt-based middle ground.
++- JSONL contract (captured live, fixtures in `harness/tests/codex-driver.test.ts`): last
++  `item.completed`/`agent_message` is the result text; `turn.completed.usage` sums to token
++  accounting (`cached_input_tokens` → `cache_read`); `error` / `turn.failed` become honest stage
++  failures with the raw tail preserved. No cost field exists, so `cost_usd` = 0 by construction.
++- The run-level `--model` only applies to the builder agent's stages; a cross-agent reviewer runs
++  on its own default model (a claude model name would make `codex exec -m` exit 1).
++
++Live conformance (run `2026-07-11_0636`): `available()` → true, sandboxed `run()` returned
++`ok:true` with parsed stage JSON and real usage. The engine's reviewer fallback rule is now
++actually exercisable: claude builds, codex reviews.
++
++Hardened same-day by a 3-lens adversarial review (13 confirmed findings, all addressed):
++sync `spawn` throws now resolve as `spawnError` instead of rejecting (CASE-0016 — the .cmd
++EINVAL path could previously crash `harness run` pre-run), timeouts can no longer strand a
++stage as `running` (CASE-0017 — POSIX process-group kill + grace force-finish), and a run-level
++`--model` that targets the builder is dropped for cross-agent stages *with a log line*, never
++silently.
++
+ ## Responsibilities
+ 
+ - Use `AGENTS.md` and project docs as the task contract.
+diff --git a/docs/orchestration.md b/docs/orchestration.md
+index 54e180e..377a16b 100644
+--- a/docs/orchestration.md
++++ b/docs/orchestration.md
+@@ -120,8 +120,12 @@ interface AgentDriver {
+ 
+ - **claude**: `claude -p <brief> --output-format json` with `cwd` = target repo; parses result
+   text (JSON per output contract) + `usage`/`total_cost_usd`/`duration_ms`/`num_turns`.
+-- **codex**: `codex exec` — gated on a capability spike; until it passes conformance the driver
+-  reports unavailable and the engine falls back per the reviewer rule above.
++- **codex**: `codex exec --json --skip-git-repo-check -` with the brief on stdin and `cwd` =
++  target repo; folds the JSONL event stream (last `agent_message` = result text; `turn.completed`
++  usage summed; `error`/`turn.failed` surfaced). `available()` = `codex login status` (CLI present
++  AND auth OK). No cost field in the stream, so `cost_usd` is an honest 0 — tokens carry the
++  accounting. Passed live conformance on this machine 2026-07-11 (codex-cli 0.144.1, run
++  `2026-07-11_0636`).
+ - Drivers surface the agent's own failure honestly: nonzero exit, malformed output, or a
+   token-limit stop become a `failed` stage with the raw tail preserved in the run folder — never a
+   silently-swallowed retry loop.
+diff --git a/failures/CASE-0016_runprocess-sync-spawn-throw-einval-on/actual.md b/failures/CASE-0016_runprocess-sync-spawn-throw-einval-on/actual.md
+new file mode 100644
+index 0000000..ad803f1
+--- /dev/null
++++ b/failures/CASE-0016_runprocess-sync-spawn-throw-einval-on/actual.md
+@@ -0,0 +1,3 @@
++# Actual Behavior
++
++spawn() threw synchronously inside the Promise executor with no try/catch; rejection escaped runProcess through both drivers; Engine.isAvailable had no guard so the CLI died pre-createRun
+\ No newline at end of file
+diff --git a/failures/CASE-0016_runprocess-sync-spawn-throw-einval-on/classification.md b/failures/CASE-0016_runprocess-sync-spawn-throw-einval-on/classification.md
+new file mode 100644
+index 0000000..5c633f9
+--- /dev/null
++++ b/failures/CASE-0016_runprocess-sync-spawn-throw-einval-on/classification.md
+@@ -0,0 +1,11 @@
++# Classification
++
++- Failure class: environment_platform_issue
++- Severity: must_fix
++- Prevention layer: try/catch around spawn resolving spawnError (proc.ts); try/catch in Engine.isAvailable; regressions: proc.test.ts + codex-driver.test.ts CASE-0016 tests
++
++## Root Cause
++TBD
++
++## Contributing Factors
++- TBD
+\ No newline at end of file
+diff --git a/failures/CASE-0016_runprocess-sync-spawn-throw-einval-on/evidence.md b/failures/CASE-0016_runprocess-sync-spawn-throw-einval-on/evidence.md
+new file mode 100644
+index 0000000..1274cdd
+--- /dev/null
++++ b/failures/CASE-0016_runprocess-sync-spawn-throw-einval-on/evidence.md
+@@ -0,0 +1,3 @@
++# Evidence
++
++Adversarial review verifier reproduced end-to-end (empty runs/ dir); found by the 2026-07-11 codex-wiring review workflow
+\ No newline at end of file
+diff --git a/failures/CASE-0016_runprocess-sync-spawn-throw-einval-on/expected.md b/failures/CASE-0016_runprocess-sync-spawn-throw-einval-on/expected.md
+new file mode 100644
+index 0000000..a5f6fad
+--- /dev/null
++++ b/failures/CASE-0016_runprocess-sync-spawn-throw-einval-on/expected.md
+@@ -0,0 +1,3 @@
++# Expected Behavior
++
++Drivers never throw: spawn failure resolves as StageResult ok:false / available() false; harness run always leaves a resumable record
+\ No newline at end of file
+diff --git a/failures/CASE-0016_runprocess-sync-spawn-throw-einval-on/failure.json b/failures/CASE-0016_runprocess-sync-spawn-throw-einval-on/failure.json
+new file mode 100644
+index 0000000..2d32f3c
+--- /dev/null
++++ b/failures/CASE-0016_runprocess-sync-spawn-throw-einval-on/failure.json
+@@ -0,0 +1,17 @@
++{
++    "case_id":  "CASE-0016",
++    "created_at":  "2026-07-11T07:15:09-04:00",
++    "resolved_at":  "2026-07-11T07:15:37-04:00",
++    "machine":  "windows",
++    "linked_run":  "2026-07-11_0636_install-codex-cli-and-wire-the-harness",
++    "repo":  "C:/Users/PC/agentic-workflow",
++    "repo_name":  "agentic-workflow",
++    "commit_or_branch":  "master",
++    "summary":  "runProcess: sync spawn throw (EINVAL on .cmd bins, Node CVE-2024-27980 guard) escaped as a promise rejection - drivers threw, and an available() probe crash could kill \u0027harness run\u0027 before any run record existed",
++    "failure_class":  "environment_platform_issue",
++    "severity":  "must_fix",
++    "repro_command":  "HARNESS_CODEX_BIN=%APPDATA%\\npm\\codex.cmd node dist/cli.js run \u0027task\u0027 (pre-fix: \u0027error: spawn EINVAL\u0027, exit 1, no run folder, no PARKED.md)",
++    "status":  "fixed",
++    "prevention_layer":  "proc.ts try/catch around spawn -\u003e resolve spawnError; Engine.isAvailable try/catch (probe crash can never kill the CLI pre-run)",
++    "regression_test":  "harness/tests/proc.test.ts \u0027sync spawn throw (.cmd...) resolves with spawnError\u0027; harness/tests/codex-driver.test.ts \u0027.cmd override... resolves... instead of rejecting\u0027 (win32)"
++}
+\ No newline at end of file
+diff --git a/failures/CASE-0016_runprocess-sync-spawn-throw-einval-on/fix.md b/failures/CASE-0016_runprocess-sync-spawn-throw-einval-on/fix.md
+new file mode 100644
+index 0000000..351cc19
+--- /dev/null
++++ b/failures/CASE-0016_runprocess-sync-spawn-throw-einval-on/fix.md
+@@ -0,0 +1,17 @@
++# Fix
++
++## Proposed Fix
++TBD
++
++## Applied Fix
++TBD
++
++## Verification
++TBD
++
++## Resolution (2026-07-11T07:15:37-04:00)
++- Status: fixed
++- Regression test: harness/tests/proc.test.ts 'sync spawn throw (.cmd...) resolves with spawnError'; harness/tests/codex-driver.test.ts '.cmd override... resolves... instead of rejecting' (win32)
++- Prevention layer: proc.ts try/catch around spawn -> resolve spawnError; Engine.isAvailable try/catch (probe crash can never kill the CLI pre-run)
++
++spawn() wrapped in try/catch inside runProcess resolving {code:null, spawnError}; Engine.isAvailable guards await d.available(). vitest 68/68.
+\ No newline at end of file
+diff --git a/failures/CASE-0016_runprocess-sync-spawn-throw-einval-on/prompt.md b/failures/CASE-0016_runprocess-sync-spawn-throw-einval-on/prompt.md
+new file mode 100644
+index 0000000..5e5a5cc
+--- /dev/null
++++ b/failures/CASE-0016_runprocess-sync-spawn-throw-einval-on/prompt.md
+@@ -0,0 +1,11 @@
++# Prompt / Situation
++
++runProcess: sync spawn throw (EINVAL on .cmd bins, Node CVE-2024-27980 guard) escaped as a promise rejection - drivers threw, and an available() probe crash could kill 'harness run' before any run record existed
++
++## Linked Run
++2026-07-11_0636_install-codex-cli-and-wire-the-harness
++
++## Repo
++- Machine: windows
++- Path: C:\Users\PC\agentic-workflow
++- Commit/branch: master
+\ No newline at end of file
+diff --git a/failures/CASE-0016_runprocess-sync-spawn-throw-einval-on/regression.md b/failures/CASE-0016_runprocess-sync-spawn-throw-einval-on/regression.md
+new file mode 100644
+index 0000000..00f968a
+--- /dev/null
++++ b/failures/CASE-0016_runprocess-sync-spawn-throw-einval-on/regression.md
+@@ -0,0 +1,10 @@
++# Regression
++
++## Regression Test
++TBD
++
++## Failing-First Evidence
++TBD
++
++## Passing Evidence
++TBD
+\ No newline at end of file
+diff --git a/failures/CASE-0016_runprocess-sync-spawn-throw-einval-on/repro.md b/failures/CASE-0016_runprocess-sync-spawn-throw-einval-on/repro.md
+new file mode 100644
+index 0000000..b0409e1
+--- /dev/null
++++ b/failures/CASE-0016_runprocess-sync-spawn-throw-einval-on/repro.md
+@@ -0,0 +1,10 @@
++# Reproduction
++
++## Command
++
++```powershell
++HARNESS_CODEX_BIN=%APPDATA%\npm\codex.cmd node dist/cli.js run 'task' (pre-fix: 'error: spawn EINVAL', exit 1, no run folder, no PARKED.md)
++```
++
++## Manual Steps
++- TBD
+\ No newline at end of file
+diff --git a/failures/CASE-0017_runprocess-timeout-could-strand-a-stage/actual.md b/failures/CASE-0017_runprocess-timeout-could-strand-a-stage/actual.md
+new file mode 100644
+index 0000000..5bc1b9e
+--- /dev/null
++++ b/failures/CASE-0017_runprocess-timeout-could-strand-a-stage/actual.md
+@@ -0,0 +1,3 @@
++# Actual Behavior
++
++finish() was wired only to 'close'; killTree's POSIX branch killed only the direct child; no fallback resolve existed - a stuck agent stranded the engine with the stage 'running' (crash-not-park class)
+\ No newline at end of file
+diff --git a/failures/CASE-0017_runprocess-timeout-could-strand-a-stage/classification.md b/failures/CASE-0017_runprocess-timeout-could-strand-a-stage/classification.md
+new file mode 100644
+index 0000000..ae81803
+--- /dev/null
++++ b/failures/CASE-0017_runprocess-timeout-could-strand-a-stage/classification.md
+@@ -0,0 +1,11 @@
++# Classification
++
++- Failure class: environment_platform_issue
++- Severity: should_fix
++- Prevention layer: detached POSIX spawn + process-group SIGKILL; 5s grace force-finish after killTree (settled-guarded); regression: proc.test.ts 'timeout always resolves' CASE-0017
++
++## Root Cause
++TBD
++
++## Contributing Factors
++- TBD
+\ No newline at end of file
+diff --git a/failures/CASE-0017_runprocess-timeout-could-strand-a-stage/evidence.md b/failures/CASE-0017_runprocess-timeout-could-strand-a-stage/evidence.md
+new file mode 100644
+index 0000000..26dfac1
+--- /dev/null
++++ b/failures/CASE-0017_runprocess-timeout-could-strand-a-stage/evidence.md
+@@ -0,0 +1,3 @@
++# Evidence
++
++2026-07-11 review workflow, platform lens; verifier live-repro'd the pending promise on real POSIX
+\ No newline at end of file
+diff --git a/failures/CASE-0017_runprocess-timeout-could-strand-a-stage/expected.md b/failures/CASE-0017_runprocess-timeout-could-strand-a-stage/expected.md
+new file mode 100644
+index 0000000..2048e73
+--- /dev/null
++++ b/failures/CASE-0017_runprocess-timeout-could-strand-a-stage/expected.md
+@@ -0,0 +1,3 @@
++# Expected Behavior
++
++A timed-out stage always resolves timedOut:true so the engine parks it; the whole child process tree is killed
+\ No newline at end of file
+diff --git a/failures/CASE-0017_runprocess-timeout-could-strand-a-stage/failure.json b/failures/CASE-0017_runprocess-timeout-could-strand-a-stage/failure.json
+new file mode 100644
+index 0000000..b63d722
+--- /dev/null
++++ b/failures/CASE-0017_runprocess-timeout-could-strand-a-stage/failure.json
+@@ -0,0 +1,17 @@
++{
++    "case_id":  "CASE-0017",
++    "created_at":  "2026-07-11T07:15:09-04:00",
++    "resolved_at":  "2026-07-11T07:15:37-04:00",
++    "machine":  "windows",
++    "linked_run":  "2026-07-11_0636_install-codex-cli-and-wire-the-harness",
++    "repo":  "C:/Users/PC/agentic-workflow",
++    "repo_name":  "agentic-workflow",
++    "commit_or_branch":  "master",
++    "summary":  "runProcess timeout could strand a stage as \u0027running\u0027 forever: \u0027close\u0027 waits for pipe EOF, but the kill only hit the direct child - on POSIX the codex npm shim\u0027s native grandchild survives SIGKILL to the launcher and holds the inherited pipes open",
++    "failure_class":  "environment_platform_issue",
++    "severity":  "should_fix",
++    "repro_command":  "POSIX replica: kill(SIGKILL) on the node launcher at timeout; promise still pending 5s later, resolves only when the orphaned grandchild exits on its own (verifier repro on the MacBook, node 24.3.0)",
++    "status":  "fixed",
++    "prevention_layer":  "POSIX: detached spawn + process-group SIGKILL reaches grandchildren; all platforms: 5s grace force-finish after killTree (settled-guarded, unref\u0027d)",
++    "regression_test":  "harness/tests/proc.test.ts \u0027timeout always resolves (kill + grace force-finish)\u0027"
++}
+\ No newline at end of file
+diff --git a/failures/CASE-0017_runprocess-timeout-could-strand-a-stage/fix.md b/failures/CASE-0017_runprocess-timeout-could-strand-a-stage/fix.md
+new file mode 100644
+index 0000000..911c457
+--- /dev/null
++++ b/failures/CASE-0017_runprocess-timeout-could-strand-a-stage/fix.md
+@@ -0,0 +1,17 @@
++# Fix
++
++## Proposed Fix
++TBD
++
++## Applied Fix
++TBD
++
++## Verification
++TBD
++
++## Resolution (2026-07-11T07:15:37-04:00)
++- Status: fixed
++- Regression test: harness/tests/proc.test.ts 'timeout always resolves (kill + grace force-finish)'
++- Prevention layer: POSIX: detached spawn + process-group SIGKILL reaches grandchildren; all platforms: 5s grace force-finish after killTree (settled-guarded, unref'd)
++
++killTree now kills the whole POSIX process group; a KILL_GRACE_MS fallback finish() guarantees the promise resolves even if inherited pipes never close. vitest 68/68.
+\ No newline at end of file
+diff --git a/failures/CASE-0017_runprocess-timeout-could-strand-a-stage/prompt.md b/failures/CASE-0017_runprocess-timeout-could-strand-a-stage/prompt.md
+new file mode 100644
+index 0000000..8cace85
+--- /dev/null
++++ b/failures/CASE-0017_runprocess-timeout-could-strand-a-stage/prompt.md
+@@ -0,0 +1,11 @@
++# Prompt / Situation
++
++runProcess timeout could strand a stage as 'running' forever: 'close' waits for pipe EOF, but the kill only hit the direct child - on POSIX the codex npm shim's native grandchild survives SIGKILL to the launcher and holds the inherited pipes open
++
++## Linked Run
++2026-07-11_0636_install-codex-cli-and-wire-the-harness
++
++## Repo
++- Machine: windows
++- Path: C:\Users\PC\agentic-workflow
++- Commit/branch: master
+\ No newline at end of file
+diff --git a/failures/CASE-0017_runprocess-timeout-could-strand-a-stage/regression.md b/failures/CASE-0017_runprocess-timeout-could-strand-a-stage/regression.md
+new file mode 100644
+index 0000000..00f968a
+--- /dev/null
++++ b/failures/CASE-0017_runprocess-timeout-could-strand-a-stage/regression.md
+@@ -0,0 +1,10 @@
++# Regression
++
++## Regression Test
++TBD
++
++## Failing-First Evidence
++TBD
++
++## Passing Evidence
++TBD
+\ No newline at end of file
+diff --git a/failures/CASE-0017_runprocess-timeout-could-strand-a-stage/repro.md b/failures/CASE-0017_runprocess-timeout-could-strand-a-stage/repro.md
+new file mode 100644
+index 0000000..1fcad43
+--- /dev/null
++++ b/failures/CASE-0017_runprocess-timeout-could-strand-a-stage/repro.md
+@@ -0,0 +1,10 @@
++# Reproduction
++
++## Command
++
++```powershell
++POSIX replica: kill(SIGKILL) on the node launcher at timeout; promise still pending 5s later, resolves only when the orphaned grandchild exits on its own (verifier repro on the MacBook, node 24.3.0)
++```
++
++## Manual Steps
++- TBD
+\ No newline at end of file
+diff --git a/harness/src/adapters/claude.ts b/harness/src/adapters/claude.ts
+index 416a520..0194e2d 100644
+--- a/harness/src/adapters/claude.ts
++++ b/harness/src/adapters/claude.ts
+@@ -1,8 +1,6 @@
+-import { spawn } from 'node:child_process';
+ import type { AgentDriver, DriveOpts, StageBrief, StageResult } from './types.js';
+ import { extractStageJson } from './parse.js';
+-
+-const DEFAULT_TIMEOUT_MS = 20 * 60 * 1000;
++import { DEFAULT_TIMEOUT_MS, failure, runProcess, tail } from './proc.js';
+ 
+ /** Shape of the `claude -p --output-format json` result envelope (fields we use). */
+ interface ClaudeEnvelope {
+@@ -25,86 +23,6 @@ function claudeBin(): string {
+   return process.env['HARNESS_CLAUDE_BIN'] ?? (process.platform === 'win32' ? 'claude.exe' : 'claude');
+ }
+ 
+-interface ProcOutput {
+-  code: number | null;
+-  stdout: string;
+-  stderr: string;
+-  timedOut: boolean;
+-  spawnError?: string;
+-}
+-
+-function runProcess(
+-  bin: string,
+-  args: string[],
+-  cwd: string,
+-  stdin: string,
+-  timeoutMs: number,
+-): Promise<ProcOutput> {
+-  return new Promise((resolve) => {
+-    const child = spawn(bin, args, { cwd, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+-    // Collect raw buffers and decode ONCE at the end: per-chunk toString('utf8')
+-    // corrupts multibyte characters split across chunk boundaries (review
+-    // finding, 2026-07-10 — this platform's 4th encoding bite).
+-    const stdoutChunks: Buffer[] = [];
+-    const stderrChunks: Buffer[] = [];
+-    let timedOut = false;
+-    let settled = false;
+-
+-    const killTree = () => {
+-      if (process.platform === 'win32' && child.pid) {
+-        // child.kill only hits the exe, not tools it spawned (bash, node, ...)
+-        spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true });
+-      } else {
+-        child.kill('SIGKILL');
+-      }
+-    };
+-
+-    const timer = setTimeout(() => {
+-      timedOut = true;
+-      killTree();
+-    }, timeoutMs);
+-
+-    const finish = (code: number | null, spawnError?: string) => {
+-      if (settled) return;
+-      settled = true;
+-      clearTimeout(timer);
+-      const out: ProcOutput = {
+-        code,
+-        stdout: Buffer.concat(stdoutChunks).toString('utf8'),
+-        stderr: Buffer.concat(stderrChunks).toString('utf8'),
+-        timedOut,
+-      };
+-      if (spawnError !== undefined) out.spawnError = spawnError;
+-      resolve(out);
+-    };
+-
+-    child.stdout.on('data', (d: Buffer) => stdoutChunks.push(d));
+-    child.stderr.on('data', (d: Buffer) => stderrChunks.push(d));
+-    child.on('error', (err) => finish(null, String(err)));
+-    child.on('close', (code) => finish(code));
+-
+-    child.stdin.on('error', () => {
+-      /* agent may exit before reading all of stdin; close handles the outcome */
+-    });
+-    child.stdin.end(stdin, 'utf8');
+-  });
+-}
+-
+-const tail = (s: string, n = 4000) => (s.length > n ? s.slice(-n) : s);
+-
+-function failure(error: string, raw: string): StageResult {
+-  return {
+-    ok: false,
+-    resultText: '',
+-    tokens: { input: 0, output: 0 },
+-    cost_usd: 0,
+-    duration_ms: 0,
+-    num_turns: 0,
+-    raw: tail(raw),
+-    error,
+-  };
+-}
+-
+ export class ClaudeDriver implements AgentDriver {
+   readonly id = 'claude' as const;
+ 
+diff --git a/harness/src/adapters/codex.ts b/harness/src/adapters/codex.ts
+index 4c803d4..af6f4cc 100644
+--- a/harness/src/adapters/codex.ts
++++ b/harness/src/adapters/codex.ts
+@@ -1,26 +1,195 @@
++import { existsSync } from 'node:fs';
++import { delimiter, join } from 'node:path';
++import type { TokenUsage } from '../types.js';
+ import type { AgentDriver, DriveOpts, StageBrief, StageResult } from './types.js';
++import { extractStageJson } from './parse.js';
++import { DEFAULT_TIMEOUT_MS, failure, runProcess } from './proc.js';
+ 
+ /**
+- * Codex adapter — gated on the headless capability spike (docs/orchestration.md).
+- * Until `codex exec` passes conformance on this machine, the driver honestly
+- * reports unavailable; the engine then falls back per the reviewer rule.
++ * Shape of the `codex exec --json` JSONL events (fields we use). Captured
++ * live on codex-cli 0.144.1 — conformance spike in run 2026-07-11_0636:
++ *   {"type":"thread.started","thread_id":"..."}
++ *   {"type":"turn.started"}
++ *   {"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"..."}}
++ *   {"type":"turn.completed","usage":{"input_tokens":n,"cached_input_tokens":n,"output_tokens":n,...}}
++ * and on failure:
++ *   {"type":"error","message":"..."}
++ *   {"type":"turn.failed","error":{"message":"..."}}
+  */
++interface CodexEvent {
++  type?: string;
++  item?: { type?: string; text?: string; message?: string };
++  usage?: {
++    input_tokens?: number;
++    cached_input_tokens?: number;
++    output_tokens?: number;
++  };
++  error?: { message?: string };
++  message?: string;
++}
++
++export interface CodexParse {
++  /** Text of the LAST agent_message — the final reply carries the stage JSON. */
++  resultText?: string;
++  turns: number;
++  tokens: TokenUsage;
++  /** error events + turn.failed messages + error items, deduped, in order. */
++  errors: string[];
++  /** Count of parseable JSONL events — 0 means stdout wasn't the event stream. */
++  events: number;
++}
++
++/** Pure JSONL-event fold; unit-tested against fixtures captured from the live spike. */
++export function parseCodexEvents(stdout: string): CodexParse {
++  const parsed: CodexParse = {
++    turns: 0,
++    tokens: { input: 0, output: 0, cache_read: 0 },
++    errors: [],
++    events: 0,
++  };
++  const pushError = (msg: string | undefined) => {
++    if (msg && !parsed.errors.includes(msg)) parsed.errors.push(msg);
++  };
++  for (const line of stdout.split(/\r?\n/)) {
++    const trimmed = line.trim();
++    if (!trimmed) continue;
++    let ev: CodexEvent;
++    try {
++      ev = JSON.parse(trimmed) as CodexEvent;
++    } catch {
++      continue; // codex may interleave non-event noise; the events counter guards against ALL-noise
++    }
++    if (typeof ev !== 'object' || ev === null) continue;
++    parsed.events++;
++    switch (ev.type) {
++      case 'item.completed':
++        if (ev.item?.type === 'agent_message' && typeof ev.item.text === 'string') {
++          parsed.resultText = ev.item.text; // last one wins, matching extractStageJson
++        } else if (ev.item?.type === 'error') {
++          pushError(ev.item.message);
++        }
++        break;
++      case 'turn.completed': {
++        parsed.turns++;
++        const u = ev.usage ?? {};
++        parsed.tokens.input += u.input_tokens ?? 0;
++        parsed.tokens.output += u.output_tokens ?? 0;
++        parsed.tokens.cache_read = (parsed.tokens.cache_read ?? 0) + (u.cached_input_tokens ?? 0);
++        break;
++      }
++      case 'turn.failed':
++        pushError(ev.error?.message);
++        break;
++      case 'error':
++        pushError(ev.message);
++        break;
++    }
++  }
++  return parsed;
++}
++
++export function buildExecArgs(opts: DriveOpts = {}): string[] {
++  const args = ['exec', '--json', '--skip-git-repo-check'];
++  if (opts.model) args.push('--model', opts.model);
++  // skipPermissions=false has no interactive analogue in `codex exec` (it is
++  // non-interactive); the honest mapping is an EXPLICIT read-only sandbox —
++  // relying on codex's default would let ~/.codex/config.toml (which Codex
++  // Desktop rewrites) silently weaken the guardrail (review finding, 2026-07-11).
++  if (opts.skipPermissions !== false) args.push('--dangerously-bypass-approvals-and-sandbox');
++  else args.push('--sandbox', 'read-only');
++  // NOTE: DriveOpts.maxTurns has no `codex exec` equivalent; the stage timeout
++  // remains the backstop for a runaway stage.
++  args.push('-'); // prompt arrives on stdin — never through argv (Windows quoting)
++  return args;
++}
++
++/**
++ * npm installs codex as a .cmd shim, which Node refuses to spawn without a
++ * shell (CVE-2024-27980 guard) — and a shell reopens argv-quoting risk. So on
++ * Windows we run the package's stable JS entry through this same node binary.
++ */
++function resolveCodexJs(): string | undefined {
++  const dirs = (process.env['PATH'] ?? '').split(delimiter);
++  // npm's default global prefix, even when PATH misses it or quotes it away
++  const appData = process.env['APPDATA'];
++  if (appData) dirs.push(join(appData, 'npm'));
++  for (const dir of dirs) {
++    // Windows PATH entries may legally be quoted — CreateProcess dequotes
++    // during search, join() does not (review finding, 2026-07-11)
++    const clean = dir.replace(/^"|"$/g, '');
++    if (!clean) continue;
++    const js = join(clean, 'node_modules', '@openai', 'codex', 'bin', 'codex.js');
++    if (existsSync(js)) return js;
++  }
++  return undefined;
++}
++
++function codexCommand(): { bin: string; prefix: string[] } {
++  const override = process.env['HARNESS_CODEX_BIN'];
++  if (override) {
++    // a .js override (a test stub, or bin/codex.js itself) runs through this
++    // same node — .js files are not directly spawnable
++    if (/\.[mc]?js$/i.test(override)) return { bin: process.execPath, prefix: [override] };
++    return { bin: override, prefix: [] };
++  }
++  if (process.platform === 'win32') {
++    const js = resolveCodexJs();
++    if (js) return { bin: process.execPath, prefix: [js] };
++  }
++  return { bin: 'codex', prefix: [] };
++}
++
+ export class CodexDriver implements AgentDriver {
+   readonly id = 'codex' as const;
+ 
+   async available(): Promise<boolean> {
+-    return false; // spike pending — see HANDOFF item J
++    // `login status` proves CLI present AND auth OK (orchestration.md's bar);
++    // it exits nonzero when logged out, so a dead auth degrades honestly.
++    const { bin, prefix } = codexCommand();
++    const out = await runProcess(bin, [...prefix, 'login', 'status'], process.cwd(), '', 30_000);
++    return out.code === 0;
+   }
+ 
+-  async run(_brief: StageBrief, _opts: DriveOpts = {}): Promise<StageResult> {
+-    return {
+-      ok: false,
+-      resultText: '',
+-      tokens: { input: 0, output: 0 },
+-      cost_usd: 0,
+-      duration_ms: 0,
+-      num_turns: 0,
+-      error: 'codex driver not yet validated on this machine (headless spike pending)',
++  async run(brief: StageBrief, opts: DriveOpts = {}): Promise<StageResult> {
++    const { bin, prefix } = codexCommand();
++    const args = [...prefix, ...buildExecArgs(opts)];
++    const started = Date.now();
++    const out = await runProcess(bin, args, brief.cwd, brief.prompt, opts.timeoutMs ?? DEFAULT_TIMEOUT_MS);
++    const durationMs = Date.now() - started; // codex emits no duration; wall clock is honest
++
++    const raw = out.stdout + '\n' + out.stderr;
++    const events = parseCodexEvents(out.stdout);
++    // Even failed stages report what the agent actually consumed.
++    const withUsage = (r: StageResult): StageResult => {
++      r.tokens = events.tokens;
++      r.duration_ms = durationMs;
++      r.num_turns = events.turns;
++      return r;
+     };
++    const detail = events.errors.length ? `: ${events.errors.join('; ')}` : '';
++
++    if (out.spawnError) return failure(`spawn failed: ${out.spawnError}`, out.stderr);
++    if (out.timedOut) return withUsage(failure('stage timed out', raw));
++    if (out.code !== 0) return withUsage(failure(`codex exited ${out.code}${detail}`, raw));
++    if (events.events === 0) return withUsage(failure('no JSONL events from codex', raw));
++    if (events.errors.length && events.resultText === undefined) {
++      // exit 0 shouldn't coincide with a failed turn, but trust the events over the exit code
++      return withUsage(failure(`codex reported error${detail}`, raw));
++    }
++    if (events.resultText === undefined) {
++      return withUsage(failure('codex produced no agent message', raw));
++    }
++
++    const result: StageResult = withUsage({
++      ok: true,
++      resultText: events.resultText,
++      tokens: events.tokens,
++      cost_usd: 0, // codex exec reports no cost; 0 is honest-unknown, tokens carry the accounting
++      duration_ms: durationMs,
++      num_turns: events.turns,
++    });
++    const parsed = extractStageJson(events.resultText);
++    if (parsed !== undefined) result.parsed = parsed;
++    return result;
+   }
+ }
+diff --git a/harness/src/adapters/proc.ts b/harness/src/adapters/proc.ts
+new file mode 100644
+index 0000000..b01837d
+--- /dev/null
++++ b/harness/src/adapters/proc.ts
+@@ -0,0 +1,122 @@
++import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
++import { join } from 'node:path';
++import type { StageResult } from './types.js';
++
++export const DEFAULT_TIMEOUT_MS = 20 * 60 * 1000;
++/** After a timeout kill, how long to wait for 'close' before force-resolving. */
++const KILL_GRACE_MS = 5000;
++
++export interface ProcOutput {
++  code: number | null;
++  stdout: string;
++  stderr: string;
++  timedOut: boolean;
++  spawnError?: string;
++}
++
++export function runProcess(
++  bin: string,
++  args: string[],
++  cwd: string,
++  stdin: string,
++  timeoutMs: number,
++): Promise<ProcOutput> {
++  return new Promise((resolve) => {
++    let child: ChildProcessWithoutNullStreams;
++    try {
++      // detached on POSIX puts the child in its own process group so a
++      // timeout kill can reach grandchildren (the codex npm shim is a node
++      // launcher whose native binary inherits our pipes).
++      child = spawn(bin, args, {
++        cwd,
++        windowsHide: true,
++        stdio: ['pipe', 'pipe', 'pipe'],
++        detached: process.platform !== 'win32',
++      });
++    } catch (err) {
++      // spawn can throw SYNCHRONOUSLY (e.g. EINVAL for .bat/.cmd since the
++      // CVE-2024-27980 guard) — without this, the rejection escapes the
++      // never-throw driver contract and can crash `harness run` pre-run
++      // (review finding, 2026-07-11, CASE-0016).
++      resolve({ code: null, stdout: '', stderr: '', timedOut: false, spawnError: String(err) });
++      return;
++    }
++    // Collect raw buffers and decode ONCE at the end: per-chunk toString('utf8')
++    // corrupts multibyte characters split across chunk boundaries (review
++    // finding, 2026-07-10 — this platform's 4th encoding bite).
++    const stdoutChunks: Buffer[] = [];
++    const stderrChunks: Buffer[] = [];
++    let timedOut = false;
++    let settled = false;
++
++    const killTree = () => {
++      if (process.platform === 'win32' && child.pid) {
++        // child.kill only hits the exe, not tools it spawned (bash, node, ...).
++        // Absolute path (PATH may be stripped) + error swallow (an unhandled
++        // 'error' event on this fire-and-forget spawn would kill the harness).
++        const taskkill = join(process.env['SystemRoot'] ?? 'C:\\Windows', 'System32', 'taskkill.exe');
++        spawn(taskkill, ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true }).on(
++          'error',
++          () => {},
++        );
++      } else if (child.pid) {
++        try {
++          process.kill(-child.pid, 'SIGKILL'); // whole process group (detached above)
++        } catch {
++          child.kill('SIGKILL');
++        }
++      } else {
++        child.kill('SIGKILL');
++      }
++    };
++
++    const timer = setTimeout(() => {
++      timedOut = true;
++      killTree();
++      // 'close' waits for stdout/stderr EOF, which a surviving grandchild
++      // holding our inherited pipes can block forever — force-resolve so a
++      // timed-out stage parks instead of stranding as 'running'
++      // (review finding, 2026-07-11, CASE-0017).
++      setTimeout(() => finish(null), KILL_GRACE_MS).unref();
++    }, timeoutMs);
++
++    const finish = (code: number | null, spawnError?: string) => {
++      if (settled) return;
++      settled = true;
++      clearTimeout(timer);
++      const out: ProcOutput = {
++        code,
++        stdout: Buffer.concat(stdoutChunks).toString('utf8'),
++        stderr: Buffer.concat(stderrChunks).toString('utf8'),
++        timedOut,
++      };
++      if (spawnError !== undefined) out.spawnError = spawnError;
++      resolve(out);
++    };
++
++    child.stdout.on('data', (d: Buffer) => stdoutChunks.push(d));
++    child.stderr.on('data', (d: Buffer) => stderrChunks.push(d));
++    child.on('error', (err) => finish(null, String(err)));
++    child.on('close', (code) => finish(code));
++
++    child.stdin.on('error', () => {
++      /* agent may exit before reading all of stdin; close handles the outcome */
++    });
++    child.stdin.end(stdin, 'utf8');
++  });
++}
++
++export const tail = (s: string, n = 4000): string => (s.length > n ? s.slice(-n) : s);
++
++export function failure(error: string, raw: string): StageResult {
++  return {
++    ok: false,
++    resultText: '',
++    tokens: { input: 0, output: 0 },
++    cost_usd: 0,
++    duration_ms: 0,
++    num_turns: 0,
++    raw: tail(raw),
++    error,
++  };
++}
+diff --git a/harness/src/engine.ts b/harness/src/engine.ts
+index 01a679b..0e12e97 100644
+--- a/harness/src/engine.ts
++++ b/harness/src/engine.ts
+@@ -152,7 +152,16 @@ export class Engine {
+     const cached = this.availability.get(id);
+     if (cached !== undefined) return cached;
+     const d = this.opts.drivers[id];
+-    const ok = d ? await d.available() : false;
++    let ok = false;
++    if (d) {
++      try {
++        ok = await d.available();
++      } catch {
++        // drivers must not throw, but a probe crash must never take down
++        // `harness run` before a run record exists (review finding, 2026-07-11)
++        ok = false;
++      }
++    }
+     this.availability.set(id, ok);
+     return ok;
+   }
+@@ -380,9 +389,19 @@ export class Engine {
+       if (pipeline.last_must_fix) ctx.reviewFindings = pipeline.last_must_fix;
+     }
+ 
++    // The run's --model names a model for the BUILDER's CLI; another agent's
++    // CLI would reject it (`codex exec -m sonnet` exits 1), so cross-agent
++    // stages run on that agent's own default model — announced, never silent.
++    const stageModel = agentId === pipeline.builder ? pipeline.model : null;
++    if (pipeline.model && stageModel === null) {
++      this.log(
++        `stage ${stage.name}: --model '${pipeline.model}' targets the builder (${pipeline.builder}); ${agentId} uses its own default model`,
++      );
++    }
++
+     stage.status = 'running';
+     stage.agent = agentId;
+-    stage.model = pipeline.model;
++    stage.model = stageModel;
+     stage.started_at = localIso();
+     this.savePipeline(handle, pipeline);
+     logRunEvent(handle, { event: 'stage_started', stage: stage.name, agent: agentId });
+@@ -391,7 +410,7 @@ export class Engine {
+     const result = await driver.run(
+       { stage: stage.name, prompt: buildBrief(stage.name, ctx), cwd: pipeline.repo },
+       {
+-        model: pipeline.model,
++        model: stageModel,
+         maxTurns: STAGE_MAX_TURNS[stage.name],
+         timeoutMs: STAGE_TIMEOUT_MS[stage.name],
+         skipPermissions: pipeline.skip_permissions,
+diff --git a/harness/tests/codex-driver.test.ts b/harness/tests/codex-driver.test.ts
+new file mode 100644
+index 0000000..6021374
+--- /dev/null
++++ b/harness/tests/codex-driver.test.ts
+@@ -0,0 +1,212 @@
++import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
++import { tmpdir } from 'node:os';
++import { join } from 'node:path';
++import { afterEach, beforeEach, describe, expect, it } from 'vitest';
++import { buildExecArgs, CodexDriver, parseCodexEvents } from '../src/adapters/codex.js';
++
++// Fixtures captured VERBATIM from the live conformance spike on this machine
++// (codex-cli 0.144.1, 2026-07-11, run 2026-07-11_0636).
++const HAPPY = [
++  '{"type":"thread.started","thread_id":"019f50c1-9ad7-7d90-8e52-9a06c29d2608"}',
++  '{"type":"turn.started"}',
++  '{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"CONFORMANCE-OK"}}',
++  '{"type":"turn.completed","usage":{"input_tokens":13868,"cached_input_tokens":9984,"output_tokens":8,"reasoning_output_tokens":0}}',
++].join('\n');
++
++// NB: real codex failure messages are stringified JSON envelopes — keep them
++// that way here so tests see the exact shape production sees.
++const FAILED = [
++  '{"type":"thread.started","thread_id":"019f50c1-f162-74b2-b401-a1a494a6f186"}',
++  '{"type":"item.completed","item":{"id":"item_0","type":"error","message":"Model metadata for `bogus-model-xyz` not found. Defaulting to fallback metadata; this can degrade performance and cause issues."}}',
++  '{"type":"turn.started"}',
++  '{"type":"error","message":"{\\"type\\":\\"error\\",\\"status\\":400,\\"error\\":{\\"type\\":\\"invalid_request_error\\",\\"message\\":\\"The \'bogus-model-xyz\' model is not supported when using Codex with a ChatGPT account.\\"}}"}',
++  '{"type":"turn.failed","error":{"message":"{\\"type\\":\\"error\\",\\"status\\":400,\\"error\\":{\\"type\\":\\"invalid_request_error\\",\\"message\\":\\"The \'bogus-model-xyz\' model is not supported when using Codex with a ChatGPT account.\\"}}"}}',
++].join('\n');
++
++describe('parseCodexEvents', () => {
++  it('extracts the agent message, usage, and turn count from the live happy fixture', () => {
++    const p = parseCodexEvents(HAPPY);
++    expect(p.resultText).toBe('CONFORMANCE-OK');
++    expect(p.turns).toBe(1);
++    expect(p.tokens).toEqual({ input: 13868, output: 8, cache_read: 9984 });
++    expect(p.errors).toEqual([]);
++    expect(p.events).toBe(4);
++  });
++
++  it('collects deduped errors from the live failure fixture, no agent message', () => {
++    const p = parseCodexEvents(FAILED);
++    expect(p.resultText).toBeUndefined();
++    expect(p.turns).toBe(0);
++    // error event and turn.failed carry the same message — recorded once;
++    // the warning-level error item is kept too.
++    expect(p.errors).toHaveLength(2);
++    expect(p.errors[1]).toContain('bogus-model-xyz');
++  });
++
++  it('last agent_message wins (final reply carries the stage JSON)', () => {
++    const two = [
++      '{"type":"item.completed","item":{"type":"agent_message","text":"thinking out loud"}}',
++      '{"type":"item.completed","item":{"type":"agent_message","text":"{\\"verdict\\":\\"approve\\"}"}}',
++    ].join('\n');
++    expect(parseCodexEvents(two).resultText).toBe('{"verdict":"approve"}');
++  });
++
++  it('sums usage across turns', () => {
++    const multi = [
++      '{"type":"turn.completed","usage":{"input_tokens":100,"cached_input_tokens":40,"output_tokens":10}}',
++      '{"type":"turn.completed","usage":{"input_tokens":200,"cached_input_tokens":150,"output_tokens":30}}',
++    ].join('\n');
++    const p = parseCodexEvents(multi);
++    expect(p.turns).toBe(2);
++    expect(p.tokens).toEqual({ input: 300, output: 40, cache_read: 190 });
++  });
++
++  it('skips non-JSON noise and CRLF/blank lines without losing events', () => {
++    const noisy = 'warning: something\r\n\r\n' + HAPPY.replace(/\n/g, '\r\n') + '\r\nnot json either';
++    const p = parseCodexEvents(noisy);
++    expect(p.resultText).toBe('CONFORMANCE-OK');
++    expect(p.events).toBe(4);
++  });
++
++  it('reports zero events for entirely non-JSONL stdout', () => {
++    const p = parseCodexEvents('codex: something went wrong before the event stream\n');
++    expect(p.events).toBe(0);
++    expect(p.resultText).toBeUndefined();
++  });
++});
++
++describe('buildExecArgs', () => {
++  it('defaults: JSONL events, repo-check skipped, full bypass, prompt on stdin', () => {
++    expect(buildExecArgs()).toEqual([
++      'exec',
++      '--json',
++      '--skip-git-repo-check',
++      '--dangerously-bypass-approvals-and-sandbox',
++      '-',
++    ]);
++  });
++
++  it('passes the model through and keeps stdin marker last', () => {
++    const args = buildExecArgs({ model: 'gpt-5-codex' });
++    expect(args).toContain('--model');
++    expect(args[args.indexOf('--model') + 1]).toBe('gpt-5-codex');
++    expect(args[args.length - 1]).toBe('-');
++  });
++
++  it('safe-perms pins an explicit read-only sandbox instead of the bypass', () => {
++    const args = buildExecArgs({ skipPermissions: false });
++    expect(args).not.toContain('--dangerously-bypass-approvals-and-sandbox');
++    expect(args[args.indexOf('--sandbox') + 1]).toBe('read-only');
++  });
++});
++
++// ---------------------------------------------------------------------------
++// Driver-level branch mapping, driven through a real spawned stub via the
++// HARNESS_CODEX_BIN override (.js values run through this same node). Pins the
++// never-throw contract, raw-tail preservation, and usage-on-failure honesty.
++// ---------------------------------------------------------------------------
++
++const STUB = `
++const mode = process.env['CODEX_STUB_MODE'] ?? 'happy';
++if (process.argv.includes('login')) process.exit(mode === 'logged-out' ? 1 : 0);
++let stdin = '';
++process.stdin.on('data', (d) => (stdin += d));
++process.stdin.on('end', () => {
++  if (mode === 'happy') {
++    console.log(JSON.stringify({ type: 'thread.started', thread_id: 't1' }));
++    console.log(JSON.stringify({ type: 'turn.started' }));
++    console.log(JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: '{"echo":' + JSON.stringify(stdin.length) + '}' } }));
++    console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 11, cached_input_tokens: 5, output_tokens: 7 } }));
++  } else if (mode === 'noise') {
++    console.log('plain banner, no events');
++  } else if (mode === 'fail') {
++    console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 21, output_tokens: 3 } }));
++    console.log(JSON.stringify({ type: 'turn.failed', error: { message: 'boom from stub' } }));
++    process.exitCode = 1;
++  } else if (mode === 'no-message') {
++    console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 9, output_tokens: 1 } }));
++  }
++});
++`;
++
++describe('CodexDriver via HARNESS_CODEX_BIN stub', () => {
++  let dir: string;
++  let stubPath: string;
++  beforeEach(() => {
++    dir = mkdtempSync(join(tmpdir(), 'codex-stub-'));
++    stubPath = join(dir, 'codex-stub.js');
++    writeFileSync(stubPath, STUB, 'utf8');
++    process.env['HARNESS_CODEX_BIN'] = stubPath;
++  });
++  afterEach(() => {
++    delete process.env['HARNESS_CODEX_BIN'];
++    delete process.env['CODEX_STUB_MODE'];
++    rmSync(dir, { recursive: true, force: true });
++  });
++
++  const brief = { stage: 'verify' as const, prompt: 'do the thing', cwd: process.cwd() };
++
++  it('happy: ok:true with parsed JSON, summed usage, measured duration', async () => {
++    const res = await new CodexDriver().run(brief, { timeoutMs: 30_000 });
++    expect(res.ok).toBe(true);
++    expect(res.parsed).toEqual({ echo: brief.prompt.length });
++    expect(res.tokens).toEqual({ input: 11, output: 7, cache_read: 5 });
++    expect(res.num_turns).toBe(1);
++    expect(res.duration_ms).toBeGreaterThan(0);
++  });
++
++  it('exit 0 + non-JSONL stdout: ok:false, raw tail kept, duration still real', async () => {
++    process.env['CODEX_STUB_MODE'] = 'noise';
++    const res = await new CodexDriver().run(brief, { timeoutMs: 30_000 });
++    expect(res.ok).toBe(false);
++    expect(res.error).toContain('no JSONL events');
++    expect(res.raw).toContain('plain banner');
++    expect(res.duration_ms).toBeGreaterThan(0);
++  });
++
++  it('nonzero exit: ok:false with the event error surfaced AND usage reported', async () => {
++    process.env['CODEX_STUB_MODE'] = 'fail';
++    const res = await new CodexDriver().run(brief, { timeoutMs: 30_000 });
++    expect(res.ok).toBe(false);
++    expect(res.error).toContain('boom from stub');
++    expect(res.tokens.input).toBe(21); // failed stages still report consumption
++    expect(res.num_turns).toBe(1);
++  });
++
++  it('exit 0 without an agent message: ok:false, usage reported', async () => {
++    process.env['CODEX_STUB_MODE'] = 'no-message';
++    const res = await new CodexDriver().run(brief, { timeoutMs: 30_000 });
++    expect(res.ok).toBe(false);
++    expect(res.error).toContain('no agent message');
++    expect(res.tokens.input).toBe(9);
++  });
++
++  it('available() follows login status exit code', async () => {
++    expect(await new CodexDriver().available()).toBe(true);
++    process.env['CODEX_STUB_MODE'] = 'logged-out';
++    expect(await new CodexDriver().available()).toBe(false);
++  });
++
++  it('missing binary: resolves honestly (available false, run ok:false), never throws', async () => {
++    process.env['HARNESS_CODEX_BIN'] = join(dir, 'nope', 'codex.exe');
++    const d = new CodexDriver();
++    expect(await d.available()).toBe(false);
++    const res = await d.run(brief, { timeoutMs: 5_000 });
++    expect(res.ok).toBe(false);
++    expect(res.error).toContain('spawn failed');
++  });
++
++  it.runIf(process.platform === 'win32')(
++    '.cmd override: sync spawn EINVAL resolves as spawnError instead of rejecting (CASE-0016)',
++    async () => {
++      const cmdPath = join(dir, 'codex.cmd');
++      writeFileSync(cmdPath, '@echo off\r\nexit /b 0\r\n', 'utf8');
++      process.env['HARNESS_CODEX_BIN'] = cmdPath;
++      const d = new CodexDriver();
++      expect(await d.available()).toBe(false); // resolves — must not reject
++      const res = await d.run(brief, { timeoutMs: 5_000 });
++      expect(res.ok).toBe(false);
++      expect(res.error).toContain('EINVAL');
++    },
++  );
++});
+diff --git a/harness/tests/engine.test.ts b/harness/tests/engine.test.ts
+index f3b6d6c..0980467 100644
+--- a/harness/tests/engine.test.ts
++++ b/harness/tests/engine.test.ts
+@@ -32,6 +32,7 @@ function ok(json: unknown): StageResult {
+ 
+ class MockDriver implements AgentDriver {
+   briefs: StageBrief[] = [];
++  opts: DriveOpts[] = [];
+   constructor(
+     readonly id: 'claude' | 'codex',
+     private script: StageResult[],
+@@ -40,8 +41,9 @@ class MockDriver implements AgentDriver {
+   async available(): Promise<boolean> {
+     return this.up;
+   }
+-  async run(brief: StageBrief, _opts?: DriveOpts): Promise<StageResult> {
++  async run(brief: StageBrief, opts?: DriveOpts): Promise<StageResult> {
+     this.briefs.push(brief);
++    this.opts.push(opts ?? {});
+     const next = this.script.shift();
+     if (!next) throw new Error(`mock ${this.id} ran out of scripted results (stage ${brief.stage})`);
+     return next;
+@@ -116,6 +118,29 @@ describe('feature pipeline happy path', () => {
+     expect(buildBrief.prompt).toContain('Add median()');
+   });
+ 
++  it("cross-agent reviewer runs on its own default model, not the builder's", async () => {
++    const claude = new MockDriver('claude', [GRILL_CLEAR, PLAN, BUILD_GREEN, VERIFY_PASS]);
++    const codex = new MockDriver('codex', [REVIEW_APPROVE]);
++    const logs: string[] = [];
++    const engine = new Engine({ root, drivers: { claude, codex }, log: (m) => logs.push(m) });
++
++    const parked = await startFeature(engine, { reviewer: 'codex', model: 'sonnet' });
++    const done = await engine.resume(parked.runId, { approve: true });
++    expect(done.state).toBe('completed');
++
++    // builder stages carry the requested model...
++    expect(claude.opts.map((o) => o.model)).toEqual(['sonnet', 'sonnet', 'sonnet', 'sonnet']);
++    // ...but `codex exec -m sonnet` would exit 1, so the reviewer gets null
++    expect(codex.opts.map((o) => o.model)).toEqual([null]);
++    // the drop is announced, never silent
++    expect(logs.some((m) => m.includes("--model 'sonnet' targets the builder"))).toBe(true);
++    // and the PERSISTED record is honest too — stage.model must match what ran
++    const pipeline = readJson<Pipeline>(join(root, 'runs', parked.runId, 'pipeline.json'));
++    const byName = Object.fromEntries(pipeline.stages.map((s) => [s.name, s.model]));
++    expect(byName['review']).toBeNull();
++    expect(byName['build']).toBe('sonnet');
++  });
++
+   it('resume without --approve stays parked at the gate', async () => {
+     const claude = new MockDriver('claude', [GRILL_CLEAR, PLAN]);
+     const engine = engineWith(claude);
+diff --git a/harness/tests/proc.test.ts b/harness/tests/proc.test.ts
+new file mode 100644
+index 0000000..25a437d
+--- /dev/null
++++ b/harness/tests/proc.test.ts
+@@ -0,0 +1,59 @@
++import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
++import { tmpdir } from 'node:os';
++import { join } from 'node:path';
++import { afterEach, beforeEach, describe, expect, it } from 'vitest';
++import { runProcess } from '../src/adapters/proc.js';
++
++let dir: string;
++beforeEach(() => {
++  dir = mkdtempSync(join(tmpdir(), 'proc-test-'));
++});
++afterEach(() => {
++  rmSync(dir, { recursive: true, force: true });
++});
++
++describe('runProcess never rejects', () => {
++  it('round-trips stdin through a real child', async () => {
++    const out = await runProcess(
++      process.execPath,
++      ['-e', 'process.stdin.pipe(process.stdout)'],
++      dir,
++      'ping',
++      30_000,
++    );
++    expect(out.code).toBe(0);
++    expect(out.stdout).toBe('ping');
++  });
++
++  it('missing binary resolves with spawnError (async ENOENT path)', async () => {
++    const out = await runProcess(join(dir, 'nope', 'missing-bin'), [], dir, '', 5_000);
++    expect(out.code).toBeNull();
++    expect(out.spawnError).toContain('ENOENT');
++  });
++
++  it.runIf(process.platform === 'win32')(
++    'sync spawn throw (.cmd, CVE-2024-27980 guard) resolves with spawnError — CASE-0016',
++    async () => {
++      const cmd = join(dir, 'shim.cmd');
++      writeFileSync(cmd, '@echo off\r\nexit /b 0\r\n', 'utf8');
++      const out = await runProcess(cmd, [], dir, '', 5_000);
++      expect(out.code).toBeNull();
++      expect(out.spawnError).toContain('EINVAL');
++    },
++  );
++
++  it(
++    'timeout always resolves (kill + grace force-finish) — CASE-0017',
++    { timeout: 15_000 },
++    async () => {
++      const out = await runProcess(
++        process.execPath,
++        ['-e', 'setInterval(() => {}, 1000)'],
++        dir,
++        '',
++        500,
++      );
++      expect(out.timedOut).toBe(true);
++    },
++  );
++});

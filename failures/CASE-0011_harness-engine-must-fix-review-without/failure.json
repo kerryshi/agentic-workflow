@@ -1,0 +1,17 @@
+{
+    "case_id":  "CASE-0011",
+    "created_at":  "2026-07-11T05:38:04-04:00",
+    "resolved_at":  "2026-07-11T05:38:21-04:00",
+    "machine":  "windows",
+    "linked_run":  "2026-07-10_1959_build-harness-v2-agent-agnostic-coding",
+    "repo":  "C:/Users/PC/agentic-workflow",
+    "repo_name":  "agentic-workflow",
+    "commit_or_branch":  "master",
+    "summary":  "harness engine: must_fix review without findings arrays crashed (TypeError) instead of parking; run stranded running, no PARKED.md",
+    "failure_class":  "tool_error",
+    "severity":  "must_fix",
+    "repro_command":  "review-template run with stub driver returning {verdict:must_fix}; pre-fix dist throws at fix_cycle_inserted logging",
+    "status":  "fixed",
+    "prevention_layer":  "engine normalizes finding arrays + execute() wraps every stage in a park-on-exception guard (park contract absolute)",
+    "regression_test":  "harness/tests/engine.test.ts :: must_fix verdict with missing arrays parks instead of crashing"
+}

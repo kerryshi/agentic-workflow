@@ -1,0 +1,17 @@
+{
+    "case_id":  "CASE-0003",
+    "created_at":  "2026-07-09T10:38:04-04:00",
+    "resolved_at":  "2026-07-09T10:41:12-04:00",
+    "machine":  "windows",
+    "linked_run":  "2026-07-08_2113_review-v3-prd-and-mvp-fix-defects-flush-out-to-v",
+    "repo":  "C:/Users/PC/agentic-workflow",
+    "repo_name":  "agentic-workflow",
+    "commit_or_branch":  "master",
+    "summary":  "complete_run blind-overwrote hand-filled evidence.md and logged duplicate run_completed events on re-completion",
+    "failure_class":  "weak_verification",
+    "severity":  "must_fix",
+    "repro_command":  "powershell -File tests/run_tests.ps1 ; observe R3 and R4 (pre-fix overwrote evidence, 8 dup events)",
+    "status":  "fixed",
+    "prevention_layer":  "project test + code fix (complete_run.ps1)",
+    "regression_test":  "tests/run_tests.ps1::R3,R4"
+}

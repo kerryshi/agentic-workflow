@@ -1,0 +1,23 @@
+# Local/private material
+.env
+.env.*
+*.local
+*.local.*
+*.secret
+*.secret.*
+
+# Raw transcripts and unsanitized logs. Scoped to raw/ dirs and top-level logs only, so
+# evidence logs committed inside a run/failure folder (runs/<id>/*.log) still travel.
+raw/
+runs/*/raw/
+failures/*/raw/
+/*.log
+
+# Build output / deps
+node_modules/
+dist/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/

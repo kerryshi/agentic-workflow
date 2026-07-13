@@ -1,0 +1,17 @@
+{
+    "case_id":  "CASE-0013",
+    "created_at":  "2026-07-11T05:38:04-04:00",
+    "resolved_at":  "2026-07-11T05:38:21-04:00",
+    "machine":  "windows",
+    "linked_run":  "2026-07-10_1959_build-harness-v2-agent-agnostic-coding",
+    "repo":  "C:/Users/PC/agentic-workflow",
+    "repo_name":  "agentic-workflow",
+    "commit_or_branch":  "master",
+    "summary":  "harness engine: verify accepted passed:true with zero results / empty output tails - unbacked done recorded with evidence_links set",
+    "failure_class":  "weak_verification",
+    "severity":  "must_fix",
+    "repro_command":  "verify stage returning {passed:true,results:[]}; pre-fix run completed with evidence.md saying 0 commands, Overall PASS",
+    "status":  "fixed",
+    "prevention_layer":  "engine parks any PASS with no results or an output-less result; evidence.md always shows real command output",
+    "regression_test":  "harness/tests/engine.test.ts :: verify PASS with zero results is rejected as vacuous evidence (+ empty output_tail variant)"
+}

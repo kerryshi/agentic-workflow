@@ -1,0 +1,17 @@
+{
+    "case_id":  "CASE-0012",
+    "created_at":  "2026-07-11T05:38:04-04:00",
+    "resolved_at":  "2026-07-11T05:38:21-04:00",
+    "machine":  "windows",
+    "linked_run":  "2026-07-10_1959_build-harness-v2-agent-agnostic-coding",
+    "repo":  "C:/Users/PC/agentic-workflow",
+    "repo_name":  "agentic-workflow",
+    "commit_or_branch":  "master",
+    "summary":  "harness engine: fix-cycle insertion was template-blind; review-only pipeline auto-ran a repo-editing build with no plan and no approval gate",
+    "failure_class":  "permission_issue",
+    "severity":  "must_fix",
+    "repro_command":  "review-template run returning verdict must_fix; pre-fix engine spliced build:fix and drove the builder ungated",
+    "status":  "fixed",
+    "prevention_layer":  "engine requires a done approval stage before inserting a fix cycle; review-only pipelines park with findings",
+    "regression_test":  "harness/tests/engine.test.ts :: review-only template parks on must_fix - no ungated fix build"
+}

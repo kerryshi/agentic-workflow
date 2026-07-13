@@ -1,0 +1,38 @@
+{
+    "run_id":  "2026-07-10_1036_fold-the-codex-built-zed-acp-adapter",
+    "created_at":  "2026-07-10T10:36:12-04:00",
+    "completed_at":  "2026-07-10T10:55:15-04:00",
+    "machine":  "windows",
+    "repo":  "C:/Users/PC/zed-acp-agents",
+    "repo_name":  "zed-acp-agents",
+    "branch":  "master",
+    "worktree":  null,
+    "objective":  "Fold the Codex-built Zed/ACP adapter spike into a standalone repo: fresh history, tests green, docs reconciled, independent review",
+    "user_prompt_summary":  "start a real run on the zed-acp spike fold-in",
+    "status_path":  "",
+    "risk_level":  "medium",
+    "agent":  {
+                  "agent_id":  "claude-code",
+                  "agent_role":  "executor",
+                  "surface":  "claude-code-cli",
+                  "model":  "claude-fable-5",
+                  "adapter_version":  "v1"
+              },
+    "status":  "complete",
+    "validation_plan":  [
+                            "npm run test:all green (check + node --test + build)",
+                            "independent reviewer pass over the Codex-authored code (no MUST-FIX)",
+                            "STATUS.md present; README paths point at the new home"
+                        ],
+    "files_changed":  [
+
+                      ],
+    "linked_failures":  [
+                            "CASE-0010"
+                        ],
+    "evidence_links":  [
+
+                       ],
+    "reviewer_result":  "Independent reviewer drove the real claude CLI: allowlist fail-closed verified, redaction on real write path, no network/telemetry; 1 runtime bug (cancellation race) -\u003e CASE-0010 fixed; budget-cap wording and stale example path corrected",
+    "final_outcome":  "Codex spike folded into standalone repo C:\\Users\\PC\\zed-acp-agents (fresh history, provenance in initial commit 6d2bc79); independent review passed with no blockers; CASE-0010 cancellation race found by review, fixed with fail-before/pass-after regression (c117858); conformance still gated on Zed install (Kerry approval)"
+}

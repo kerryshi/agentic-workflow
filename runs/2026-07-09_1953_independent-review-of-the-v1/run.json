@@ -1,0 +1,68 @@
+{
+    "run_id":  "2026-07-09_1953_independent-review-of-the-v1",
+    "created_at":  "2026-07-09T19:53:57-04:00",
+    "completed_at":  "2026-07-09T22:54:00-04:00",
+    "machine":  "windows",
+    "repo":  "C:/Users/PC/agentic-workflow",
+    "repo_name":  "agentic-workflow",
+    "branch":  "master",
+    "worktree":  null,
+    "objective":  "Independent review of the v1 reliability layer build, apply improvements",
+    "user_prompt_summary":  "Kerry: overlook the agentic workflow v3 build, make any improvements",
+    "status_path":  "",
+    "risk_level":  "medium",
+    "agent":  {
+                  "agent_id":  "codex",
+                  "agent_role":  "mixed",
+                  "surface":  "codex-desktop",
+                  "model":  "gpt-5.6-sol",
+                  "adapter_version":  "v1",
+                  "attribution":  "backfilled 2026-07-10 from Codex Desktop session rollouts (inferred): run opened under Claude Code 19:53-21:12; adapter wave authored in Codex threads 21:23-22:44"
+              },
+    "status":  "shipped",
+    "validation_plan":  [
+                            "tests/run_tests.ps1 green (repeat runs)",
+                            "scripts/summarize_metrics.ps1 regenerates cleanly"
+                        ],
+    "files_changed":  [
+                          "adapters/",
+                          "docs/ai-coding-workflow.md",
+                          "docs/architecture.md",
+                          "docs/workflows.md",
+                          "failures/CASE-0004_update-run-parallel-evidence-links-lost/",
+                          "failures/CASE-0005_capture-failure-allocates-duplicate/",
+                          "failures/CASE-0006_diff-patch-corrupted-when-a-changed/",
+                          "failures/CASE-0007_active-run-auto-detect-silently-picks/",
+                          "failures/CASE-0008_agent-adapter-defaults-misattribute-non/",
+                          "failures/CASE-0009_bom-less-utf-8-git-metadata-is-decoded/",
+                          "HANDOFF.md",
+                          "metrics/runs.jsonl",
+                          "PRD.md",
+                          "README.md",
+                          "runs/2026-07-09_1953_independent-review-of-the-v1/",
+                          "scripts/_common.ps1",
+                          "scripts/capture_failure.ps1",
+                          "scripts/complete_run.ps1",
+                          "scripts/new_run.ps1",
+                          "scripts/resolve_failure.ps1",
+                          "scripts/summarize_metrics.ps1",
+                          "scripts/update_run.ps1",
+                          "templates/run-record.md",
+                          "tests/run_tests.ps1",
+                          "USAGE.md"
+                      ],
+    "linked_failures":  [
+                            "CASE-0004",
+                            "CASE-0005",
+                            "CASE-0006",
+                            "CASE-0007",
+                            "CASE-0008",
+                            "CASE-0009"
+                        ],
+    "evidence_links":  [
+                           "docs/architecture.md",
+                           "adapters/zed-acp.md"
+                       ],
+    "reviewer_result":  "Independent cross-check found and fixed adapter misattribution plus UTF-8 record corruption; no failing checks remain.",
+    "final_outcome":  "Hardened the reliability core and separated execution adapters, including a Zed ACP conformance contract."
+}

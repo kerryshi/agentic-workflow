@@ -1,0 +1,17 @@
+{
+    "case_id":  "CASE-0009",
+    "created_at":  "2026-07-09T22:52:56-04:00",
+    "resolved_at":  "2026-07-09T22:53:22-04:00",
+    "machine":  "windows",
+    "linked_run":  "2026-07-09_1953_independent-review-of-the-v1",
+    "repo":  "C:/Users/PC/agentic-workflow",
+    "repo_name":  "agentic-workflow",
+    "commit_or_branch":  "master",
+    "summary":  "BOM-less UTF-8 Git metadata is decoded as ANSI",
+    "failure_class":  "environment_platform_issue",
+    "severity":  "must_fix",
+    "repro_command":  "tests/run_tests.ps1 R21 R22 with accented branch and filename",
+    "status":  "fixed",
+    "prevention_layer":  "explicit UTF-8 process and JSON decoding",
+    "regression_test":  "tests/run_tests.ps1::R21,R22"
+}

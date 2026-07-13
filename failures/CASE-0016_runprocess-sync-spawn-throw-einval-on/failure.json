@@ -1,0 +1,17 @@
+{
+    "case_id":  "CASE-0016",
+    "created_at":  "2026-07-11T07:15:09-04:00",
+    "resolved_at":  "2026-07-11T07:15:37-04:00",
+    "machine":  "windows",
+    "linked_run":  "2026-07-11_0636_install-codex-cli-and-wire-the-harness",
+    "repo":  "C:/Users/PC/agentic-workflow",
+    "repo_name":  "agentic-workflow",
+    "commit_or_branch":  "master",
+    "summary":  "runProcess: sync spawn throw (EINVAL on .cmd bins, Node CVE-2024-27980 guard) escaped as a promise rejection - drivers threw, and an available() probe crash could kill \u0027harness run\u0027 before any run record existed",
+    "failure_class":  "environment_platform_issue",
+    "severity":  "must_fix",
+    "repro_command":  "HARNESS_CODEX_BIN=%APPDATA%\\npm\\codex.cmd node dist/cli.js run \u0027task\u0027 (pre-fix: \u0027error: spawn EINVAL\u0027, exit 1, no run folder, no PARKED.md)",
+    "status":  "fixed",
+    "prevention_layer":  "proc.ts try/catch around spawn -\u003e resolve spawnError; Engine.isAvailable try/catch (probe crash can never kill the CLI pre-run)",
+    "regression_test":  "harness/tests/proc.test.ts \u0027sync spawn throw (.cmd...) resolves with spawnError\u0027; harness/tests/codex-driver.test.ts \u0027.cmd override... resolves... instead of rejecting\u0027 (win32)"
+}
