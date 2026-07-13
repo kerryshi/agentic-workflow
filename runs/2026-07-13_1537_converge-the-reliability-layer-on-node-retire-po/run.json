@@ -1,0 +1,46 @@
+{
+  "run_id": "2026-07-13_1537_converge-the-reliability-layer-on-node-retire-po",
+  "created_at": "2026-07-13T15:37:20-04:00",
+  "completed_at": "2026-07-13T15:41:13-04:00",
+  "machine": "windows",
+  "repo": "C:/Users/PC/agentic-workflow",
+  "repo_name": "agentic-workflow",
+  "branch": "master",
+  "worktree": null,
+  "objective": "Converge the reliability layer on Node, retire PowerShell, install the cross-platform merge gate",
+  "user_prompt_summary": "Kerry: find the best area for both Windows and Mac operations, or keep them different but connected.",
+  "status_path": "",
+  "risk_level": "high",
+  "agent": {
+    "agent_id": "claude-code",
+    "agent_role": "executor",
+    "surface": "claude-code",
+    "model": "claude-opus-4-8",
+    "adapter_version": "v1"
+  },
+  "status": "shipped",
+  "validation_plan": [
+    "npm test (harness)",
+    "npx tsc --noEmit -p .",
+    "10x consecutive full-suite runs, 165/165",
+    "Node-vs-PowerShell metrics parity on the real repo",
+    "merge gate proven both ways through a real git merge"
+  ],
+  "files_changed": [
+    "harness/src/claim.ts",
+    "harness/src/newrun.ts",
+    "harness/src/manualrun.ts",
+    "harness/src/metrics.ts",
+    "harness/vitest.config.ts",
+    ".githooks/pre-merge-commit"
+  ],
+  "linked_failures": [
+    "CASE-0019",
+    "CASE-0020"
+  ],
+  "evidence_links": [
+    "evidence.md"
+  ],
+  "reviewer_result": "self-reviewed; the two defects I introduced were caught and are recorded in evidence.md",
+  "final_outcome": "PowerShell retired (1,931 lines); one cross-platform Node implementation; CASE-0019 data-loss bug fixed; A11 closed 10/10 green; merge gate installed and proven both ways"
+}

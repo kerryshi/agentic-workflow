@@ -13,15 +13,13 @@ executors. Good first roles:
 
 ## Start
 
-```powershell
-& C:\Users\PC\agentic-workflow\scripts\new_run.ps1 `
-  -Objective "Classify recent failure cases" `
-  -Repo C:\Users\PC\agentic-workflow `
-  -AgentId local-model `
-  -AgentRole classifier `
-  -AgentSurface ollama `
-  -AgentModel "llama3.1:8b" `
-  -ValidationPlan 'review generated labels'
+```bash
+node harness/dist/cli.js new-run "Classify recent failure cases" 
+  --repo /path/to/some-repo 
+  --agent-id local-model 
+  --role helper 
+  --surface ollama 
+  --validate "npm test" --validate "npm run lint"
 ```
 
 ## Guardrail

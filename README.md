@@ -9,7 +9,7 @@ to fix that — an orchestrator that treats agents (Claude Code, Codex, local mo
 workers, drives them headless through a task-shaped pipeline, gates the risky transitions, and
 records what actually happened.
 
-The harness is ~2,800 lines of TypeScript with **zero runtime dependencies**. Everything below is
+The harness is ~4,400 lines of TypeScript with **zero runtime dependencies**. Everything below is
 reproducible from the records in this repo.
 
 ---
@@ -31,7 +31,9 @@ Both were closed with regressions that fail against the pre-fix code and pass af
 finished at 115 tests. The harness refused to approve the run while must-fix findings were open, and
 parked for a human twice rather than shipping.
 
-Across 14 recorded runs: **0 escaped bugs, 17 failure cases, 17 regressions, 92.9% evidence rate.**
+Across 16 recorded runs: **20 failure cases, 20 regressions, 93.8% evidence rate — and exactly one
+escaped bug, recorded as such.** (See *The one that got away*, below. A reliability record with no
+escaped bugs in it is usually a record that isn't looking.)
 See [`metrics/summary.md`](metrics/summary.md).
 
 ---
@@ -108,14 +110,42 @@ Underneath the harness sits the thing that makes the numbers above trustworthy: 
 record, and every serious defect becomes a case with a regression test.
 
 ```
-runs/       14 real run records — task, plan, review rounds, diff, evidence, cost
-failures/   17 cases — root cause, the regression that pins it, the prevention layer
+runs/       16 real run records — task, plan, review rounds, diff, evidence, cost
+failures/   20 cases — root cause, the regression that pins it, the prevention layer
 metrics/    generated from the event log, not hand-written
 ```
 
-Seventeen failure cases, seventeen regressions, zero open. Six of them are bugs the system found
-**in itself** — including the one that made it under-report its own cost. Browse
-[`failures/`](failures/); each case names the test that would fail if the bug came back.
+Twenty failure cases, twenty regressions, zero open. Most are bugs the system found **in itself** —
+including the one that made it under-report its own cost. Browse [`failures/`](failures/); each case
+names the test that would fail if the bug came back.
+
+## The one that got away
+
+[`CASE-0020`](failures/) is the only **escaped bug** in the record: a change was merged to `main`
+while its test suite was red on Windows, and it stayed that way for a day.
+
+Nobody skipped a check. **There was no check to skip.** The project is worked from two machines — a
+Windows desktop and a Mac — and the change was written on the Mac, where it was green. The repo had
+no cross-platform gate, so the other half of the estate was never exercised.
+
+The interesting part is the root cause, because the first explanation was wrong. It was originally
+logged as CPU load and an antivirus scan. It wasn't: `vitest` spawns one worker per core (16 on that
+machine), these suites spawn real processes, and **Windows process creation costs about an order of
+magnitude more than POSIX** — so the workers starved each other. That is why it reproduced on a
+quiet box, and why it never reproduced in CI: a GitHub Windows runner has 2 cores, so it only ever
+spawned 2 workers. The bug needed a big machine.
+
+The fix is structural rather than a patch:
+
+- a **pre-merge hook** that runs the suite on the machine doing the merge and refuses a red branch —
+  proven in both directions through a real `git merge`, because it was **silently broken on the
+  first attempt** and only testing the guard revealed it;
+- worker and timeout limits scoped to Windows, verified by **10 consecutive green runs**;
+- and the entire Windows-only PowerShell layer (1,931 lines) retired in favour of one Node
+  implementation, after proving field-for-field output parity against the real repo — so there is no
+  longer a half of this system that only one machine can run.
+
+A reliability record with zero escaped bugs in it is usually a record that isn't looking.
 
 ---
 
@@ -159,14 +189,16 @@ node dist/cli.js status <run-id>
 node dist/cli.js report <run-id>
 ```
 
-Tests: `npm test` → **104 passing** across 15 files.
+Tests: `npm test` → **165 passing** across 24 files.
 
 ---
 
 ## Honest limits
 
-- **The reliability scripts (`scripts/`) are PowerShell 5.1 and Windows-only.** The harness itself
-  is cross-platform; a Node port of the capture/resolve helpers is not written yet.
+- ~~The reliability scripts are PowerShell and Windows-only.~~ **Fixed 2026-07-13:** all 1,931 lines
+  of PowerShell were retired and ported to Node, after proving field-for-field output parity against
+  the real repo. There is now one implementation of the record contract, and it runs on both
+  platforms.
 - **The Codex driver has no session resume.** It falls back to fresh contexts per stage, and the
   records say so rather than hiding it.
 - **Delta re-review is proven by test, not yet by a real fix cycle** — the run that would have
@@ -182,7 +214,7 @@ Tests: `npm test` → **104 passing** across 15 files.
 
 | path | what |
 |---|---|
-| `harness/` | the orchestrator — Node/TS, zero runtime deps, 104 tests |
+| `harness/` | the orchestrator AND the whole reliability layer — Node/TS, zero runtime deps, 165 tests |
 | `harness/src/engine.ts` | the state machine: stages, gates, fix cycles, park/resume |
 | `harness/src/adapters/` | `claude.ts`, `codex.ts` — swappable drivers behind one interface |
 | `adapters/` | the agent-agnostic contract every driver conforms to |
@@ -190,7 +222,6 @@ Tests: `npm test` → **104 passing** across 15 files.
 | `docs/orchestration.md` | templates, the stage-brief contract, the state machine |
 | `runs/` | 14 real run records |
 | `failures/` | 17 closed cases, each pinned by a regression |
-| `scripts/` | the v1 reliability layer (PowerShell, Windows) |
 | `PRD.md` | the product spec the system was built against |
 | `MANUAL.md` | the working loop, end to end |
 

@@ -1,0 +1,17 @@
+{
+  "case_id": "CASE-0018",
+  "created_at": "2026-07-12T20:23:34-04:00",
+  "resolved_at": "2026-07-12T20:23:44-04:00",
+  "machine": "mac",
+  "linked_run": "",
+  "repo": "/Users/kerryshi/agentic-workflow",
+  "repo_name": "agentic-workflow",
+  "commit_or_branch": "harness-v2.2-adoption",
+  "summary": "Node case port reintroduced CASE-0005/0004 races by dropping the PS file locks",
+  "failure_class": "regression_introduced",
+  "severity": "must_fix",
+  "repro_command": "fork two processes calling captureFailure with different summaries against one root; 14/15 rounds shared a CASE id",
+  "status": "fixed",
+  "prevention_layer": "withDirLock around every shared-record RMW; port reviews must diff concurrency semantics against the source",
+  "regression_test": "harness/tests/lock.test.ts + harness/tests/cases.test.ts::'concurrent captures with different summaries never share a number'"
+}

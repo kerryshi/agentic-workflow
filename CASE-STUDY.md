@@ -152,8 +152,12 @@ lie.
   (`Reviewer: fresh claude process — same agent as builder, no shared context (honest fallback)`).
   A *different* agent is used when one is available; the Codex driver exists for exactly this.
   Fresh-process-same-model is the honest fallback, labelled as such, and it still caught both bugs.
-- **"Cherry-picked runs."** All 14 are in [`runs/`](runs/), including the ones where the harness
+- **"Cherry-picked runs."** All 16 are in [`runs/`](runs/), including the ones where the harness
   looked bad. `metrics/summary.md` is generated from the event log, not typed by hand.
 - **"The bug claims are unverifiable."** Each is pinned by a named regression test, and the
   downstream project's commit history records the same two bugs independently of the harness.
-- **"n=14."** Yes. This is an engineering artifact with honest measurements, not a benchmark paper.
+- **"n=16."** Yes. This is an engineering artifact with honest measurements, not a benchmark paper.
+- **"You would hide a real miss."** The record contains one escaped bug (CASE-0020: a change reached
+  `main` red on Windows because there was no cross-platform gate). It is written up in the README,
+  root-caused past its own first wrong explanation, and closed with a merge gate that was itself
+  broken on the first attempt and only fixed because I tested the guard.

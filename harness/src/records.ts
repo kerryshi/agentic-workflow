@@ -1,9 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import type { AgentId, RunRecord, TemplateName } from './types.js';
 import { ensureDir, writeJsonAtomic, writeFileAtomic, readJson, appendJsonl } from './fsx.js';
 import { runId, localIso } from './ids.js';
+import { claimDir } from './claim.js';
+import { withDirLock } from './lock.js';
 
 export const AGENT_ID_MAP: Record<AgentId, string> = {
   claude: 'claude-code',
@@ -32,7 +33,8 @@ export interface RunHandle {
 
 function gitBranch(repo: string): string {
   try {
-    return execFileSync('git', ['-C', repo, 'branch', '--show-current'], {
+    // abbrev-ref: detached HEAD reports 'HEAD' instead of empty (PS parity)
+    return execFileSync('git', ['-C', repo, 'rev-parse', '--abbrev-ref', 'HEAD'], {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
@@ -46,23 +48,27 @@ function normalizePath(p: string): string {
   return p.replace(/\\/g, '/');
 }
 
+/** The machine this process actually runs on (Kerry's linux = WSL). */
+export function machineName(): 'windows' | 'wsl' | 'mac' {
+  return process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'mac' : 'wsl';
+}
+
 export function createRun(opts: CreateRunOpts): RunHandle {
   const now = opts.now ?? new Date();
-  let id = runId(opts.task, now);
-  // Same-minute same-slug runs must not clobber an existing record.
-  if (existsSync(join(opts.root, 'runs', id))) {
-    let n = 2;
-    while (existsSync(join(opts.root, 'runs', `${id}-${n}`))) n++;
-    id = `${id}-${n}`;
-  }
+  // Claim the id atomically. This was existsSync() -> pick a suffix -> ensureDir(), which is
+  // check-then-act: ensureDir is mkdir -p and SUCCEEDS on an existing directory, so two
+  // processes starting the same task in the same minute both saw "free", both took the same
+  // id, and the second overwrote the first's run.json. Measured on the reconstructed code:
+  // 4 processes x 150 contended ids lost 17-105 runs per run (CASE-0005 class; CASE-0018
+  // records the same bug reintroduced in the case port). Regression: tests/run-claim.test.ts.
+  const id = claimDir(join(opts.root, 'runs'), runId(opts.task, now));
   const runDir = join(opts.root, 'runs', id);
-  ensureDir(runDir);
 
   const record: RunRecord = {
     run_id: id,
     created_at: localIso(now),
     completed_at: null,
-    machine: process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'mac' : 'wsl',
+    machine: machineName(),
     repo: normalizePath(opts.repo),
     repo_name: basename(opts.repo),
     branch: gitBranch(opts.repo),
@@ -137,24 +143,29 @@ export interface CompleteRunOpts {
   now?: Date;
 }
 
-export function completeRun(handle: RunHandle, opts: CompleteRunOpts = {}): RunRecord {
+export async function completeRun(handle: RunHandle, opts: CompleteRunOpts = {}): Promise<RunRecord> {
   const path = join(handle.runDir, 'run.json');
-  const record = readJson<RunRecord>(path);
-  if (record.completed_at !== null) {
-    // Re-completing would append a duplicate run_completed event and skew
-    // metrics (the v1 scripts refuse this without -Force; the harness never
-    // re-completes). CASE-0003 class.
-    throw new Error(`run ${record.run_id} is already completed (${record.completed_at})`);
-  }
-  record.status = opts.status ?? 'complete';
-  record.completed_at = localIso(opts.now ?? new Date());
-  if (opts.finalOutcome !== undefined) record.final_outcome = opts.finalOutcome;
-  if (opts.reviewerResult !== undefined) record.reviewer_result = opts.reviewerResult;
-  if (opts.evidenceLinks)
-    record.evidence_links = [...new Set([...record.evidence_links, ...opts.evidenceLinks])];
-  if (opts.filesChanged)
-    record.files_changed = [...new Set([...record.files_changed, ...opts.filesChanged])];
-  writeJsonAtomic(path, record);
+  // Locked RMW: `harness case new --linked-run` in another process writes
+  // linked_failures into this same file (CASE-0004 class).
+  const record = await withDirLock(path, () => {
+    const record = readJson<RunRecord>(path);
+    if (record.completed_at !== null) {
+      // Re-completing would append a duplicate run_completed event and skew
+      // metrics (the v1 scripts refuse this without -Force; the harness never
+      // re-completes). CASE-0003 class.
+      throw new Error(`run ${record.run_id} is already completed (${record.completed_at})`);
+    }
+    record.status = opts.status ?? 'complete';
+    record.completed_at = localIso(opts.now ?? new Date());
+    if (opts.finalOutcome !== undefined) record.final_outcome = opts.finalOutcome;
+    if (opts.reviewerResult !== undefined) record.reviewer_result = opts.reviewerResult;
+    if (opts.evidenceLinks)
+      record.evidence_links = [...new Set([...record.evidence_links, ...opts.evidenceLinks])];
+    if (opts.filesChanged)
+      record.files_changed = [...new Set([...record.files_changed, ...opts.filesChanged])];
+    writeJsonAtomic(path, record);
+    return record;
+  });
 
   appendJsonl(join(handle.root, 'metrics', 'runs.jsonl'), {
     type: 'run_completed',
@@ -167,11 +178,13 @@ export function completeRun(handle: RunHandle, opts: CompleteRunOpts = {}): RunR
 }
 
 /** Sync the plan stage's validation commands into run.json (FR1 field). */
-export function updateRunValidationPlan(handle: RunHandle, commands: string[]): void {
+export async function updateRunValidationPlan(handle: RunHandle, commands: string[]): Promise<void> {
   const path = join(handle.runDir, 'run.json');
-  const record = readJson<RunRecord>(path);
-  record.validation_plan = commands;
-  writeJsonAtomic(path, record);
+  await withDirLock(path, () => {
+    const record = readJson<RunRecord>(path);
+    record.validation_plan = commands;
+    writeJsonAtomic(path, record);
+  });
 }
 
 /** One event per stage transition / agent invocation, into the run's commands.jsonl. */

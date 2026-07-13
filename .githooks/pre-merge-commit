@@ -1,0 +1,49 @@
+#!/bin/sh
+#
+# THE CROSS-PLATFORM GATE.
+#
+# Why this exists: harness v2.2 was built on the Mac, merged into master, and was red on
+# Windows for a day. Nobody skipped a test — there was no test to skip. The working repo had
+# no CI, and the desktop is where Mac branches get merged, so the merge is the one moment
+# where the other platform is guaranteed to be present.
+#
+# A gate you have to remember to invoke is not a gate. This one fires on its own.
+#
+# Install (once per clone, on BOTH machines):
+#     git config core.hooksPath .githooks
+#     git config merge.ff false      # so a branch merge always makes a merge commit, and
+#                                    # therefore always trips this hook
+#
+# `harness doctor` warns when it is not installed.
+
+set -e
+
+root=$(git rev-parse --show-toplevel)
+cd "$root/harness"
+
+if [ ! -d node_modules ]; then
+  echo "pre-merge-commit: harness/node_modules is missing — cannot verify this merge."
+  echo "                  run 'npm ci' in harness/ and merge again."
+  echo "                  (Refusing rather than skipping: a gate that silently passes is not a gate.)"
+  exit 1
+fi
+
+echo "pre-merge-commit: running the harness suite on $(uname -s) before this merge lands..."
+
+# Capture the status EXPLICITLY rather than leaning on `set -e` + `if ! cmd`. A gate whose
+# pass/fail depends on shell subtleties is a gate that will one day wave everything through,
+# and a guard that never barks is worse than no guard: it manufactures false confidence.
+set +e
+npm test --silent
+rc=$?
+set -e
+
+if [ "$rc" -ne 0 ]; then
+  echo ""
+  echo "pre-merge-commit: REFUSED — the suite is red on this machine (exit $rc)."
+  echo "  This is the check v2.2 did not have. Fix it, or merge with --no-verify ONLY if you"
+  echo "  have a better reason than 'it passed on the other laptop'."
+  exit 1
+fi
+
+echo "pre-merge-commit: green (exit 0). Merging."

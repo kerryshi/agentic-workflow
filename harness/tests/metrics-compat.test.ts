@@ -1,27 +1,33 @@
-import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { summarizeMetrics } from '../src/metrics.js';
+import { captureFailure, resolveFailure } from '../src/cases.js';
 import { completeRun, createRun } from '../src/records.js';
 
 /**
- * The docs promise: summarize_metrics.ps1 parses harness-written records
- * unchanged. This test makes that promise executable (Windows-only — the
- * v1 scripts are Windows PowerShell).
+ * The docs promise the metrics layer reads harness-written records unchanged. This makes that
+ * promise executable.
+ *
+ * It used to shell out to summarize_metrics.ps1 and was therefore `runIf(win32)` — so the Mac
+ * never ran it, and the promise went unchecked on half the estate. Since the metrics layer was
+ * ported to Node (2026-07-13) the same guarantee is enforced on BOTH platforms. That is the
+ * whole point of retiring the PowerShell: one implementation, checked everywhere.
  */
-const SUMMARIZE = resolve(import.meta.dirname, '..', '..', 'scripts', 'summarize_metrics.ps1');
 
 let root: string;
+
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), 'harness-metrics-'));
-});
-afterEach(() => {
-  rmSync(root, { recursive: true, force: true });
+  root = mkdtempSync(join(tmpdir(), 'harness-compat-'));
 });
 
-describe.runIf(process.platform === 'win32')('summarize_metrics.ps1 cross-check', () => {
-  it('counts a harness-written run', () => {
+afterEach(() => {
+  rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+});
+
+describe('metrics read harness-written records', () => {
+  it('counts a harness run, its evidence, and a linked failure case', async () => {
     const handle = createRun({
       root,
       repo: root,
@@ -32,15 +38,27 @@ describe.runIf(process.platform === 'win32')('summarize_metrics.ps1 cross-check'
       model: null,
       validationPlan: ['npm test'],
     });
-    completeRun(handle, { status: 'complete', evidenceLinks: ['evidence.md'] });
+    await completeRun(handle, { status: 'complete', evidenceLinks: ['evidence.md'] });
 
-    const stdout = execFileSync(
-      'powershell.exe',
-      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', SUMMARIZE, '-Root', root, '-Json'],
-      { encoding: 'utf8', timeout: 120_000 },
-    );
-    const summary = JSON.parse(stdout.replace(/^﻿/, '')) as Record<string, unknown>;
-    expect(summary['runs_started']).toBe(1);
-    expect(summary['runs_shipped']).toBe(1);
-  }, 120_000);
+    const { caseId } = await captureFailure({
+      root,
+      summary: 'a real defect found by the fixture run',
+      failureClass: 'tool_error',
+      severity: 'must_fix',
+      linkedRun: handle.runId,
+    });
+    await resolveFailure({ root, caseId, regressionTest: 'tests/metrics-compat.test.ts' });
+
+    const s = summarizeMetrics(root);
+    expect(s.runs_started).toBe(1);
+    expect(s.runs_shipped).toBe(1);
+    // Evidence is proven from evidence_links, never inferred from status.
+    expect(s.validation_evidence_rate_percent).toBe(100);
+    expect(s.failures_total).toBe(1);
+    expect(s.failures_resolved).toBe(1);
+    expect(s.failures_open).toBe(0);
+    expect(s.regressions_added).toBe(1);
+    expect(s.must_fix_failures).toBe(1);
+    expect(s.failure_classes).toEqual({ tool_error: 1 });
+  });
 });

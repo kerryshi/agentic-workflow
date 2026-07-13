@@ -1,22 +1,23 @@
 {
-    "updated_at":  "2026-07-12T19:56:40-04:00",
-    "runs_started":  14,
-    "runs_shipped":  14,
-    "failed_runs":  6,
-    "failures_total":  17,
-    "failures_open":  0,
-    "failures_resolved":  17,
-    "failures_wont_fix":  0,
-    "must_fix_failures":  14,
-    "escaped_bugs":  0,
-    "regressions_added":  17,
-    "validation_evidence_rate_percent":  92.9,
-    "average_minutes_start_to_ship":  72.8,
-    "failure_classes":  {
-                            "weak_verification":  2,
-                            "permission_issue":  1,
-                            "tool_error":  7,
-                            "syntax_type_error":  1,
-                            "environment_platform_issue":  6
-                        }
+  "updated_at": "2026-07-13T15:45:18-04:00",
+  "runs_started": 16,
+  "runs_shipped": 16,
+  "failed_runs": 7,
+  "failures_total": 20,
+  "failures_open": 0,
+  "failures_resolved": 20,
+  "failures_wont_fix": 0,
+  "must_fix_failures": 16,
+  "escaped_bugs": 1,
+  "regressions_added": 20,
+  "validation_evidence_rate_percent": 93.8,
+  "average_minutes_start_to_ship": 64,
+  "failure_classes": {
+    "environment_platform_issue": 7,
+    "syntax_type_error": 1,
+    "weak_verification": 2,
+    "tool_error": 8,
+    "permission_issue": 1,
+    "regression_introduced": 1
+  }
 }

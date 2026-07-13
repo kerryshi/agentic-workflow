@@ -166,7 +166,7 @@ stage), `task.md`, `plan.md` (plan stage), `review.md` (review stage), `evidence
 stage), `commands.jsonl` (one event per stage transition + agent invocation), and appends
 `run_started`/`run_completed` to `metrics/runs.jsonl` (v1 event names). Agent output tails pass a
 conservative secret scrub (`src/secrets.ts`, PRD FR7) before landing in committed records.
-`scripts/summarize_metrics.ps1` must parse harness-written records unchanged — enforced by
+`harness metrics` must parse harness-written records unchanged — enforced by
 `harness/tests/metrics-compat.test.ts`, which drives the real PS script over a harness-written
 run. The PS scripts remain the human/manual CLI; the harness does not shell out to them (keeps
 prompts out of PS 5.1 quoting entirely).

@@ -21,14 +21,13 @@ and failure artifacts in `agentic-workflow`.
 
 Start runs with explicit metadata:
 
-```powershell
-& C:\Users\PC\agentic-workflow\scripts\new_run.ps1 `
-  -Objective "Fix the failing navbar test" `
-  -Repo C:\Users\PC\some-repo `
-  -AgentId zed-acp `
-  -AgentRole mixed `
-  -AgentSurface zed `
-  -ValidationPlan 'npm test', 'npm run lint'
+```bash
+node harness/dist/cli.js new-run "Fix the failing navbar test" 
+  --repo /path/to/some-repo 
+  --agent-id zed-acp 
+  --role executor 
+  --surface zed-acp 
+  --validate "npm test" --validate "npm run lint"
 ```
 
 ## Adapter Responsibilities
@@ -47,13 +46,13 @@ The separate Zed/ACP project owns:
 
 | Zed/ACP event | Agentic Workflow action |
 |---|---|
-| Task accepted | `new_run.ps1` |
+| Task accepted | `harness new-run` |
 | Plan proposed/approved | preserve `plan.md` and approval evidence |
-| Important command or check | `update_run.ps1` |
-| Serious agent/reviewer miss | `capture_failure.ps1` |
+| Important command or check | `harness update-run` |
+| Serious agent/reviewer miss | `harness case new` |
 | Verification and review complete | populate `evidence.md` / `review.md` |
-| Task completed, blocked, or abandoned | `complete_run.ps1` with honest status |
-| Durable fix lands | `resolve_failure.ps1` + metrics refresh |
+| Task completed, blocked, or abandoned | `harness complete-run` with honest status |
+| Durable fix lands | `harness case resolve` + metrics refresh |
 
 ## Non-Goals
 

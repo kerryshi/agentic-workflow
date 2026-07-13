@@ -394,17 +394,13 @@ agentic-workflow/
     local-models.md
     zed-acp.md
 
-  scripts/
-    _common.ps1                            # shared PS 5.1-safe helpers (dot-sourced)
-    new_run.ps1
-    update_run.ps1                         # log commands / add evidence links mid-run
-    complete_run.ps1
-    capture_failure.ps1
-    resolve_failure.ps1                    # close a failure case
-    summarize_metrics.ps1
+  harness/                                 # the orchestrator AND the reliability layer
+    src/                                   # Node/TS, zero runtime deps; new-run, update-run,
+                                           # complete-run, case new/resolve, metrics, doctor
+    tests/                                 # the full regression suite (was harness/tests (npm test))
 
   tests/
-    run_tests.ps1                          # full-lifecycle + per-bug regression harness
+    npm test                          # full-lifecycle + per-bug regression harness
 
   metrics/
     summary.md
@@ -587,7 +583,7 @@ The system must support creating failure cases with:
 - proposed / applied fix (case file `fix.md`)
 - regression test (case file `regression.md`; `regression_test` in JSON)
 - prevention layer
-- status + resolution (`resolve_failure.ps1` sets `status`, `resolved_at`)
+- status + resolution (`harness case resolve` sets `status`, `resolved_at`)
 
 #### FR3: Ship Report
 
@@ -630,7 +626,7 @@ Minimum approach:
 
 #### FR6: Metrics
 
-The system must summarize (all produced by `summarize_metrics.ps1` as of v1):
+The system must summarize (all produced by `harness metrics` as of v1):
 
 - runs started (`runs_started`)
 - runs shipped/complete (`runs_shipped`)
@@ -684,8 +680,8 @@ Mac hook parity is optional in MVP but must be documented.
 
 ### 3.11 Data Schemas
 
-This is the exact shape emitted by the v1 scripts (kept in sync with `scripts/new_run.ps1`
-and `scripts/capture_failure.ps1`). All records are BOM-less UTF-8; arrays stay arrays even
+This is the exact shape emitted by the v1 scripts (kept in sync with `harness new-run`
+and `harness case new`). All records are BOM-less UTF-8; arrays stay arrays even
 with a single element.
 
 #### run.json
@@ -722,7 +718,7 @@ with a single element.
 ```
 
 `status` is one of `in_progress`, `shipped`, `complete`, `blocked`, `abandoned`. On
-completion `complete_run.ps1` sets `completed_at`; a `-Force` amend adds `last_amended_at`
+completion `harness complete-run` sets `completed_at`; a `-Force` amend adds `last_amended_at`
 and preserves the original `completed_at`.
 
 #### failure.json
@@ -748,7 +744,7 @@ and preserves the original `completed_at`.
 ```
 
 `severity` is one of `must_fix`, `should_fix`, `escaped_bug`, `blocker`, `note`.
-`status` is `open` until `resolve_failure.ps1` sets it to `fixed`, `wont_fix`, or `resolved`
+`status` is `open` until `harness case resolve` sets it to `fixed`, `wont_fix`, or `resolved`
 (and stamps `resolved_at`, `regression_test`, `prevention_layer`). Narrative fields
 (expected/actual/repro/evidence/fix/regression) live in the case's Markdown files, not in
 this JSON.
@@ -786,7 +782,7 @@ Tasks:
 - Add `runs/`, `templates/`, and `metrics/`. **[done]**
 - Add `new_run` helper. **[done]** - plus `update_run`, `complete_run`.
 - Update `/ship` to write structured evidence artifacts. **[done]** - the `ship` skill now
-  detects an active run and writes `final.md`/`evidence.md` + calls `complete_run.ps1`.
+  detects an active run and writes `final.md`/`evidence.md` + calls `harness complete-run`.
 - Require substantial tasks to link to a run record. **[done]** - documented in USAGE +
   the ship skill.
 
@@ -962,7 +958,7 @@ deterministically green**, `/ship` + `/review` wired to run records). What remai
 1. **Use it on real tasks** to accumulate run history (target: 10+ records) - the metrics only
    tell a story once there is history.
 2. **Seed 2-3 failure cases** from the v1 script bugs found in this review pass, each linked
-   to its regression in `tests/run_tests.ps1`. **[done 2026-07-09]** - CASE-0001..0003.
+   to its regression in `npm test` (in harness/). **[done 2026-07-09]** - CASE-0001..0003.
 3. **Wire `/review`** to offer `capture_failure` on serious findings. **[done 2026-07-09, step 5]**
    Still open: extend `/distill` for failure lessons (Phase 3 remainder).
 4. **Use the adapter contract on real tasks** - Claude Code first, then Codex/local helpers once the
@@ -1003,7 +999,7 @@ A Node/TypeScript CLI at `harness/` that, given a coding task:
 4. requires an independent review stage (different agent than the builder when available) and
    evidence at verify — a stage claiming "tests pass" without output fails;
 5. writes the standard v1 records natively (run.json / plan.md / review.md / evidence.md /
-   commands.jsonl / runs.jsonl, BOM-less UTF-8, schema §3.11) — `summarize_metrics.ps1` parses
+   commands.jsonl / runs.jsonl, BOM-less UTF-8, schema §3.11) — `harness metrics` parses
    harness runs unchanged.
 
 Full spec: `docs/orchestration.md`.

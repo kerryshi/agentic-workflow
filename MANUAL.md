@@ -24,8 +24,8 @@ verifier / classifier / helper / mixed); no agent owns a role. The compounding a
 |---|---|---|
 | **Claude Code CLI** | terminal on the desktop | Primary surface; the brief + skills load automatically |
 | **Zed Agent Panel** | open Zed → Agent Panel → "Agentic Workflow" | One approved Code prompt = one recorded run (agent `zed-acp`, Sonnet executor, fresh reviewer, fail-closed tool allowlist). Repo: `C:\Users\PC\zed-acp-agents` |
-| **Codex Desktop** | Codex app threads | Peer agent. Start a run with `-AgentId codex` so the work is attributed — unattributed agent work is how CASE-0008 happened |
-| **Local models** | Ollama etc. | Peer, evidence-gated: start with helper roles (classify, summarize, tag) via `-AgentId local-model` |
+| **Codex Desktop** | Codex app threads | Peer agent. Start a run with `--agent-id codex` so the work is attributed — unattributed agent work is how CASE-0008 happened |
+| **Local models** | Ollama etc. | Peer, evidence-gated: start with helper roles (classify, summarize, tag) via `--agent-id local-model` |
 | **MacBook** | `ssh mac`, mirrors | Thin client; only commits travel (`git push mac master` / `sync-to-mac.sh`) |
 
 ## 3. The working loop
@@ -35,12 +35,12 @@ verifier / classifier / helper / mixed); no agent owns a role. The compounding a
 2. **Plan** — `/plan` for anything multi-file or >~30 lines. When the ask is ambiguous or
    product-shaped, `/plan` opens with a **grill session**: the agent interrogates you until shared
    understanding, *then* plans. Wait for approval.
-3. **Open a run record** (substantial tasks): `scripts\new_run.ps1` with honest `-AgentId`.
+3. **Open a run record** (substantial tasks): `harness new-run` with an honest `--agent-id`.
 4. **Build** — small scoped diffs, one concern per change.
 5. **Verify with evidence** — tests/lint AND proof (output, before/after, log). "Tests pass" ≠ done.
 6. **Ship** — `/ship` runs a fresh independent `/review` (the author never reviews their own work),
    then commit locally. Pushes are per-request, never assumed.
-7. **Close the loop** — `complete_run.ps1` with evidence; capture learnings to the brain inbox.
+7. **Close the loop** — `harness complete-run` with evidence; capture learnings to the brain inbox.
 
 ## 4. Skills — when to reach for each
 
@@ -60,24 +60,33 @@ verifier / classifier / helper / mixed); no agent owns a role. The compounding a
 
 ## 5. Reliability layer — the run lifecycle
 
-All scripts in `agentic-workflow\scripts\`, PS 5.1. Invoke in-process (`& script.ps1 …`) or via
-Bash — never pass quote-bearing prose through `powershell -Command` (PS 5.1 mangles it).
+One CLI, `harness`, running identically on Windows and macOS. (The PowerShell scripts were retired
+2026-07-13 — they only ever ran on the desktop, so the Mac could not open a run record at all.)
 
-```powershell
+```bash
+cd harness && npm ci && npm run build   # once
+
 # open (records agent attribution — required honesty)
-& scripts\new_run.ps1 -Objective "..." -Repo C:\path -AgentId claude-code -AgentRole executor `
-  -AgentModel claude-fable-5 -ValidationPlan 'tests green','evidence X'
+node dist/cli.js new-run "..." --repo /path --agent-id claude-code --role executor \
+  --model claude-fable-5 --validate "npm test" --validate 'pytest -k "a,b"'
 
-# during: log commands/evidence
-& scripts\update_run.ps1 -RunId <id> -Command "..." -Evidence "..."
+# during: log commands / attach evidence
+node dist/cli.js update-run --command "npm test" --result "138 passed" --evidence-link evidence.md
 
-# close with evidence (captures a secret-scrubbed diff)
-& scripts\complete_run.ps1 -RunId <id> -Status shipped|complete|blocked -FinalOutcome "..." `
-  -Evidence "..." -CaptureDiff
+# close with evidence (captures an appliable diff, non-ASCII filenames included)
+node dist/cli.js complete-run --status shipped --outcome "..." --capture-diff
 
 # metrics
-& scripts\summarize_metrics.ps1
+node dist/cli.js metrics
 ```
+
+Omit the run id and the **single** in-progress run for that repo is used. Two candidates is an
+ambiguity, and ambiguity is **refused, never guessed** — the old script sorted every in-progress run
+across every repo and silently completed the newest, exiting 0 having closed the wrong record
+(CASE-0007).
+
+`--validate` repeats and each occurrence is one whole command; it is never comma-split, because
+`pytest -k "a,b"` is one command.
 
 **When does a task get a run record?** Substantial work: multi-file changes, anything shipping to a
 project, anything an agent executes autonomously. Not for one-line answers.
@@ -87,10 +96,10 @@ adapter always uses this), `blocked`, `abandoned`. Never report done without evi
 
 ## 6. The failure → learning cycle
 
-1. A review or run surfaces a serious defect → `capture_failure.ps1` (taxonomy in PRD §3.8),
+1. A review or run surfaces a serious defect → `harness case new` (taxonomy in PRD §3.8),
    linked to the run.
 2. Fix ships **with a regression test that fails before and passes after** — no exceptions.
-3. `resolve_failure.ps1` names the regression + prevention layer; regenerate metrics.
+3. `harness case resolve` names the regression + prevention layer; regenerate metrics.
 4. `/distill` harvests resolved cases into brain notes (by CASE-#### id) when the lesson
    generalizes; a lesson that bites ≥3 times gets promoted into the global brief.
 
@@ -118,12 +127,12 @@ when the picture changes.
 |---|---|
 | Get back into a project | `/resume` in its directory |
 | See the whole estate | `state-survey` workflow, or read `PORTFOLIO.md` |
-| Start real work | `/plan` → approval → `new_run.ps1` → build |
-| Finish real work | evidence → `/ship` → `complete_run.ps1` → commit |
+| Start real work | `/plan` → approval → `harness new-run` → build |
+| Finish real work | evidence → `/ship` → `harness complete-run` → commit |
 | Code from Zed | Agent Panel → "Agentic Workflow" → approve the Code turn |
-| Attribute Codex work | `new_run.ps1 -AgentId codex -AgentSurface codex-desktop` |
+| Attribute Codex work | `harness new-run "..." --agent-id codex --surface codex-desktop` |
 | Capture a lesson | one dated line in `brain\LEARNINGS.md` → `/distill` later |
 | Drive a task through the v2 pipeline | `cd <repo>` → `harness run "<task>"` → read `plan.md` → `harness resume <id> --approve` (global command since 2026-07-11) |
 | …from Windows PowerShell | the npm `harness.ps1` shim is BLOCKED by the Restricted execution policy (bit a session 2026-07-11) — use Git Bash or cmd (`harness.cmd`), or `node harness/dist/cli.js`; the task must be a full sentence (goal + context), never a slash command like `/plan` — skills run inside Claude Code, not the harness |
-| Check system health | `tests\run_tests.ps1` (64 checks) · `metrics\summary.md` |
+| Check system health | `npm test` in `harness/` (165 checks) · `harness doctor` · `metrics/summary.md` |
 | Sync the Mac | `git push mac master` per repo · `bash ~/sync-to-mac.sh` |

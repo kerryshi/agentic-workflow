@@ -8,14 +8,13 @@ same run/failure/evidence system.
 
 ## Start
 
-```powershell
-& C:\Users\PC\agentic-workflow\scripts\new_run.ps1 `
-  -Objective "Describe the task" `
-  -Repo C:\Users\PC\some-repo `
-  -AgentId codex `
-  -AgentRole mixed `
-  -AgentSurface codex `
-  -ValidationPlan 'pytest', 'ruff check .'
+```bash
+node harness/dist/cli.js new-run "Describe the task" 
+  --repo /path/to/some-repo 
+  --agent-id codex 
+  --role mixed 
+  --surface codex 
+  --validate "npm test" --validate "npm run lint"
 ```
 
 ## Headless driver (v2 harness)
@@ -60,9 +59,9 @@ silently.
 
 - Use `AGENTS.md` and project docs as the task contract.
 - Keep file edits scoped.
-- Record important commands through `update_run.ps1`.
-- Complete through `complete_run.ps1` after validation.
-- Link serious misses to `capture_failure.ps1`.
+- Record important commands through `harness update-run`.
+- Complete through `harness complete-run` after validation.
+- Link serious misses to `harness case new`.
 
 ## History
 

@@ -37,11 +37,9 @@ const BUILDER_LINEAGE: ReadonlySet<StageName> = new Set(['grill', 'repro', 'plan
 
 const CONVENTIONS_CAP = 8000;
 
-/** The v1 failure-capture scripts are PowerShell — only point at them where they run. */
+/** Cross-platform since v2.2 — the Node case port replaced the PS-only hint. */
 function captureFailureHint(runId: string): string {
-  return process.platform === 'win32'
-    ? `If a finding is a serious workflow miss, capture it: scripts/capture_failure.ps1 -LinkedRun ${runId} -Summary "..."`
-    : `If a finding is a serious workflow miss, note it for a desktop-side scripts/capture_failure.ps1 run (the capture scripts are PowerShell-only for now).`;
+  return `If a finding is a serious workflow miss, capture it: harness case new --summary "..." --class <class> --linked-run ${runId}`;
 }
 
 /**
@@ -306,7 +304,7 @@ export class Engine {
     if (active.duplicate !== undefined && opts.forceNew !== true) {
       throw new Error(
         `an active run with this exact task already exists for this repo: ${active.duplicate}. ` +
-          `Resume it (harness resume ${active.duplicate}) instead of starting a twin, or pass --force-new.`,
+          `Resume it (harness resume ${active.duplicate} -i) instead of starting a twin, or pass --force-new.`,
       );
     }
     for (const other of active.othersOnRepo) {
@@ -373,7 +371,12 @@ export class Engine {
     const out: { duplicate?: string; othersOnRepo: string[] } = { othersOnRepo: [] };
     const runsDir = join(this.opts.root, 'runs');
     if (!existsSync(runsDir)) return out;
-    const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '');
+    // Windows paths are case-insensitive — a drive-letter case mismatch must
+    // not hide an active run (review finding, 2026-07-12).
+    const norm = (p: string) => {
+      const n = p.replace(/\\/g, '/').replace(/\/+$/, '');
+      return process.platform === 'win32' ? n.toLowerCase() : n;
+    };
     for (const id of readdirSync(runsDir)) {
       const pipelinePath = join(runsDir, id, 'pipeline.json');
       if (!existsSync(pipelinePath)) continue;
@@ -506,7 +509,7 @@ export class Engine {
 
     const review = [...pipeline.stages].reverse().find((s) => s.name === 'review');
     const evidenceLinks = existsSync(join(handle.runDir, 'evidence.md')) ? ['evidence.md'] : [];
-    completeRun(handle, {
+    await completeRun(handle, {
       status: 'complete',
       finalOutcome: `pipeline ${pipeline.template} completed (${pipeline.stages.length} stages)`,
       ...(review?.error === undefined && review
@@ -683,7 +686,7 @@ export class Engine {
       outcome =
         parsed === undefined
           ? this.failStage(handle, pipeline, stage, result, 'output contract violated')
-          : this.handleStageOutput(handle, pipeline, stage, parsed);
+          : await this.handleStageOutput(handle, pipeline, stage, parsed);
     }
     // read through a call boundary: TS otherwise keeps stage.status narrowed
     // to 'running' — the outcome handlers above mutate it out of band
@@ -696,12 +699,12 @@ export class Engine {
     return outcome;
   }
 
-  private handleStageOutput(
+  private async handleStageOutput(
     handle: RunHandle,
     pipeline: Pipeline,
     stage: StageState,
     parsed: unknown,
-  ): EngineOutcome | undefined {
+  ): Promise<EngineOutcome | undefined> {
     switch (stage.name) {
       case 'grill': {
         const out = parsed as GrillOut;
@@ -765,7 +768,7 @@ export class Engine {
           `${out.plan_markdown.trim()}${validationSection}\n`,
         );
         pipeline.validation_commands = out.validation_commands;
-        updateRunValidationPlan(handle, out.validation_commands);
+        await updateRunValidationPlan(handle, out.validation_commands);
         stage.artifacts.push('plan.md');
         stage.status = 'done';
         return undefined;

@@ -305,7 +305,7 @@ describe('honest failure handling', () => {
     const parked = await startFeature(engine);
     const outcome = await engine.resume(parked.runId, { approve: true });
     expect(outcome.state).toBe('parked');
-    expect(outcome.message).toContain('capture_failure.ps1');
+    expect(outcome.message).toContain('harness case new');
     expect(
       readFileSync(join(root, 'runs', parked.runId, 'stage-build-raw.txt'), 'utf8'),
     ).toContain('out of cheese');

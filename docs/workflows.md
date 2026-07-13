@@ -1,132 +1,134 @@
-# Agentic Workflow v1 (reliability layer)
+# Agentic Workflow (reliability layer)
 
-An agent-agnostic reliability layer. Claude Code is the first supported adapter, but the same run
-records, failure cases, ship evidence, and metrics can wrap Codex or local/open-source agents.
+An agent-agnostic reliability layer. Claude Code and Codex are peer adapters; the same run
+records, failure cases, ship evidence, and metrics wrap either, or a local model.
 See `docs/ai-coding-workflow.md` and `adapters/adapter-contract.md` for the general loop.
+
+> **The PowerShell layer was retired on 2026-07-13.** `scripts/*.ps1` and `tests/run_tests.ps1`
+> are gone (1,931 lines); everything they did lives in `harness/` and runs identically on Windows
+> and macOS. Parity was proven against the real repo before deleting — field for field, including
+> the honest 82.4% evidence rate. The point was not tidiness: the Mac could not create a run record
+> or regenerate metrics at all, so half the estate was second-class. There is now **one**
+> implementation of the record contract, not two.
 
 ## Invocation (read first)
 
-The scripts are Windows PowerShell 5.1 and share `scripts/_common.ps1` (auto-loaded). Two
-safe ways to call them:
-
-- **From a PowerShell session, in-process:** `& C:\Users\PC\agentic-workflow\scripts\new_run.ps1 -Objective "..." ...`
-- **From the Bash tool:** `powershell -NoProfile -ExecutionPolicy Bypass -File C:\...\new_run.ps1 -Objective "..." ...`
-
-Do **not** pass argument values that contain double quotes or newlines through
-`powershell -File` from a PowerShell session - PS 5.1 mangles quote-bearing strings passed to
-native exes. For long narrative (final outcome, reviewer notes), pass a short value and edit
-the generated `.md` afterward, or run from the Bash tool.
-
-All records are BOM-less UTF-8 and strict-parser friendly. Every script takes an optional
-`-Root` (defaults to this repo) so tests and experiments never touch real records.
-
-## A. Start a run
-
-For substantial coding tasks, before major edits.
-
-```powershell
-& C:\Users\PC\agentic-workflow\scripts\new_run.ps1 `
-  -Objective "Fix failing navbar test" `
-  -Repo C:\Users\PC\example-repo `
-  -AgentId claude-code `
-  -RiskLevel medium `
-  -ValidationPlan 'npm test', 'npm run lint'
+```bash
+cd harness && npm ci && npm run build
+node dist/cli.js <command>
 ```
 
-`-ValidationPlan` binds as a PowerShell array (`'a','b'`); items are **not** comma-split, so a
-command like `'pytest -k "a,b"'` is preserved. The script prints the generated run ID (format
-`yyyy-MM-dd_HHmm_slug`) - later steps auto-detect it, so you rarely need to copy it.
+Prefer `node harness/dist/cli.js` (or Git Bash). The npm-installed `harness` shim is unreliable in
+desktop PowerShell — the execution policy blocks `harness.ps1`. `harness doctor` reports what is
+missing.
 
-Done when `runs/<run-id>/run.json` exists with `status: in_progress` and an `agent` block.
+Every command takes `--root <path>` (defaults to this repo), so tests and experiments never touch
+real records.
 
-## B. Work the run (optional, mid-flight)
+## Two kinds of run
 
-Log commands and attach evidence without editing files by hand:
+**Harness-driven** — the harness owns the pipeline and writes the records itself:
 
-```powershell
-& C:\Users\PC\agentic-workflow\scripts\update_run.ps1 `
-  -Command "npm test" -Result "12 passed" -Note "navbar green" `
-  -EvidenceLink "runs/<run-id>/test-output.txt"
+```bash
+node dist/cli.js run "add a --json flag to the export command" --repo ../my-project
+node dist/cli.js resume <run_id> --approve
 ```
 
-Omit `-RunId` and it targets the newest in-progress run. `-Command` appends a JSON line to
-`commands.jsonl`; `-EvidenceLink` adds to the run's `evidence_links`.
+**Manual** — a record for work the harness is *not* driving (a hand-done task, or another agent
+under `adapters/adapter-contract.md`). This replaces `new_run.ps1`:
 
-## C. Ship a change
-
-Run the normal `/ship` process first (diff scan, independent review, validation, evidence).
-Then complete the run record:
-
-```powershell
-& C:\Users\PC\agentic-workflow\scripts\complete_run.ps1 `
-  -Status shipped `
-  -FinalOutcome "Fixed failing navbar test and added regression coverage." `
-  -ReviewerResult "No must-fix findings remain." `
-  -Evidence "npm test and npm run lint passed." `
-  -CaptureDiff
+```bash
+node dist/cli.js new-run "Fix failing navbar test" \
+  --repo ../my-project \
+  --agent-id claude-code --role executor \
+  --risk medium \
+  --validate "npm test" --validate 'pytest -k "a,b"'
 ```
 
-Omit `-RunId` to auto-detect the active run. `complete_run`:
-- authors `final.md` (its own report) and updates `run.json`;
-- **appends** a completion section to `evidence.md` and `review.md` - it never overwrites
-  content you wrote during the run;
-- merges (never drops) `evidence_links` and `files_changed`;
-- refuses to re-complete an already-finished run unless you pass `-Force` (which logs a
-  `run_amended` event instead of a duplicate `run_completed`).
+`--validate` repeats, and **each occurrence is one whole command**. It is never comma-split:
+`pytest -k "a,b"` is a single command, and splitting it would silently produce two broken ones.
 
-`-CaptureDiff` writes a real, `git apply`-able `diff.patch` (tracked changes + untracked new
-files). **Caveat:** it embeds the content of untracked, non-gitignored files from the target
-repo. Common secret paths (`.env`, `*.pem`, `*.key`, `credentials.json`, `token.json`, ...) are
-excluded, but do not use `-CaptureDiff` on a repo that may hold unignored secrets.
+An unrecorded agent is written as `manual` — honestly, never guessed. A named agent inherits its
+own surface unless you pass `--surface` (CASE-0008).
 
-Done when `final.md`, `evidence.md`, `review.md`, and `diff.patch` tell the story without
-opening chat history.
+## During the run
 
-## D. Capture a failure
-
-When tests fail, review finds a serious issue, the user reports a regression, or the agent
-behavior itself was wrong.
-
-```powershell
-& C:\Users\PC\agentic-workflow\scripts\capture_failure.ps1 `
-  -Summary "Reviewer caught wrong order confirmation flow" `
-  -Repo C:\Users\PC\example-repo `
-  -LinkedRun <run-id> `
-  -FailureClass weak_verification `
-  -Severity must_fix `
-  -ReproCommand 'pytest tests/test_orders.py -k confirmation'
+```bash
+node dist/cli.js update-run --command "npm test" --result "138 passed" --note "green"
+node dist/cli.js update-run --evidence-link evidence.md --file src/cli.ts
 ```
 
-Pass `-Repo` explicitly - it defaults to the current directory, which is usually not the
-failing project. Creates `failures/CASE-####_slug/` (expected / actual / repro / evidence /
-classification / fix / regression) and links the case into the run when `-LinkedRun` is given.
+## Finishing the run
 
-## E. Resolve a failure
-
-After fixing, close the case and record the durable prevention:
-
-```powershell
-& C:\Users\PC\agentic-workflow\scripts\resolve_failure.ps1 `
-  -CaseId CASE-0001 -Status fixed `
-  -RegressionTest "tests/run_tests.ps1::R1" `
-  -PreventionLayer "project test" `
-  -FixSummary "Cast Measure-Object max to int before the D4 format."
+```bash
+node dist/cli.js complete-run \
+  --status shipped \
+  --outcome "ported the reliability layer to Node" \
+  --evidence-link evidence.md \
+  --capture-diff
 ```
 
-Sets `status` (`fixed` / `wont_fix` / `resolved`), stamps `resolved_at`, and appends a
-Resolution section to `fix.md`.
+`complete-run`:
 
-## F. Summarize metrics
+- **appends** a Completion section to `final.md` — it never overwrites hand-written content
+  (CASE-0003);
+- refuses to complete an already-finished run, because a second `run_completed` event would skew
+  the metrics (CASE-0003);
+- with `--capture-diff`, writes a `diff.patch` that `git apply` accepts, including files with
+  **non-ASCII names** — git enumerates the paths itself on a throwaway index, so filenames never
+  round-trip through a shell and mojibake (CASE-0001/R14, CASE-0006).
 
-```powershell
-& C:\Users\PC\agentic-workflow\scripts\summarize_metrics.ps1
+**Omit the run id** on `update-run` / `complete-run` and it targets the single in-progress run for
+that repo. **Two candidates is an ambiguity, and ambiguity is refused, not guessed** — the original
+sorted every in-progress run across every repo and silently completed the newest, exiting 0 having
+closed the wrong record (CASE-0007).
+
+## Failure cases
+
+```bash
+node dist/cli.js case new \
+  --summary "verify accepted a PASS it never ran" \
+  --class weak_verification --severity must_fix \
+  --linked-run 2026-07-13_1042_some-run
+
+node dist/cli.js case resolve CASE-0019 \
+  --regression "harness/tests/verify.test.ts::vacuous PASS is rejected" \
+  --prevention "native verify: the harness runs the commands itself"
 ```
 
-Regenerates `metrics/summary.md` + `summary.json`: runs started/shipped, honest evidence rate
-(shipped status alone does NOT count as evidence), must-fix + escaped-bug counts, open/resolved
-failures, regressions added, failure classes, and average minutes over shipped/complete runs.
+Open a case only when the lesson generalises past the one bug. Close it with the regression test
+that would fail if it came back — a case without a regression is a diary entry.
 
-## Tests
+## Metrics
 
-`& C:\Users\PC\agentic-workflow\tests\run_tests.ps1` runs the full lifecycle plus one
-regression per fixed bug against a throwaway `-Root`; exit 0 = all green.
+```bash
+node dist/cli.js metrics          # regenerates metrics/summary.md + summary.json
+node dist/cli.js metrics --json
+```
+
+Two honesty properties are load-bearing, and both were bugs once:
+
+- **Evidence is proven, never inferred.** It counts a real `evidence_link` or a non-stub bullet in
+  `evidence.md`. The original counted `status == shipped` as evidence and reported a flattering
+  100%. A metric that grades itself is not a metric.
+- **`wont_fix` is closed but NOT resolved.** Counting it as resolved inflated the number.
+
+## Checks
+
+```bash
+cd harness
+npm test        # the full suite — the whole reliability layer is covered here now
+npm run typecheck
+npm run build
+```
+
+## The merge gate
+
+```bash
+git config core.hooksPath .githooks
+git config merge.ff false
+```
+
+`.githooks/pre-merge-commit` runs the suite before a merge lands and refuses a red one. It exists
+because harness v2.2 was written on the Mac, merged, and was red on Windows for a day — nobody
+skipped a check; there was no check to skip. `harness doctor` reports when it is not installed.

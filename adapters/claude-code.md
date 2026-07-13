@@ -7,14 +7,13 @@ subagents, hooks, and worktrees. Agentic Workflow wraps it with durable records.
 
 ## Start
 
-```powershell
-& C:\Users\PC\agentic-workflow\scripts\new_run.ps1 `
-  -Objective "Describe the task" `
-  -Repo C:\Users\PC\some-repo `
-  -AgentId claude-code `
-  -AgentRole mixed `
-  -AgentSurface claude-code `
-  -ValidationPlan 'npm test', 'npm run lint'
+```bash
+node harness/dist/cli.js new-run "Describe the task" 
+  --repo /path/to/some-repo 
+  --agent-id claude-code 
+  --role mixed 
+  --surface claude-code 
+  --validate "npm test" --validate "npm run lint"
 ```
 
 ## Loop

@@ -1,0 +1,17 @@
+{
+  "case_id": "CASE-0019",
+  "created_at": "2026-07-13T15:37:52-04:00",
+  "resolved_at": "2026-07-13T15:38:38-04:00",
+  "machine": "windows",
+  "linked_run": "2026-07-13_1537_converge-the-reliability-layer-on-node-retire-po",
+  "repo": "C:/Users/PC/agentic-workflow",
+  "repo_name": "agentic-workflow",
+  "commit_or_branch": "master",
+  "summary": "createRun claimed run ids check-then-act; concurrent processes silently overwrote each other's run.json",
+  "failure_class": "tool_error",
+  "severity": "must_fix",
+  "repro_command": "4 processes x 150 contended ids behind a shared barrier: 600 claims yielded 530/495/583 unique ids",
+  "status": "fixed",
+  "prevention_layer": "src/claim.ts: atomic non-recursive mkdir claim - the directory IS the lock, as new_run.ps1 had it. ensureDir (mkdir -p) must never be used to claim an id.",
+  "regression_test": "harness/tests/run-claim.test.ts::concurrent PROCESSES never share an id (CASE-0005 class)"
+}

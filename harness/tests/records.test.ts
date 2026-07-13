@@ -70,9 +70,9 @@ describe('createRun', () => {
 });
 
 describe('completeRun', () => {
-  it('stamps completion and appends run_completed', () => {
+  it('stamps completion and appends run_completed', async () => {
     const handle = makeRun();
-    const record = completeRun(handle, {
+    const record = await completeRun(handle, {
       status: 'shipped',
       finalOutcome: 'done',
       reviewerResult: 'no must-fix',
@@ -108,10 +108,10 @@ describe('review-2026-07-10 regressions', () => {
     expect(original.run_id).toBe(first.runId); // untouched
   });
 
-  it('double-complete throws instead of duplicating run_completed events', () => {
+  it('double-complete throws instead of duplicating run_completed events', async () => {
     const handle = makeRun();
-    completeRun(handle, { status: 'complete' });
-    expect(() => completeRun(handle, { status: 'shipped' })).toThrow(/already completed/);
+    await completeRun(handle, { status: 'complete' });
+    await expect(completeRun(handle, { status: 'shipped' })).rejects.toThrow(/already completed/);
     const events = readFileSync(join(root, 'metrics', 'runs.jsonl'), 'utf8')
       .trim()
       .split('\n')
@@ -119,14 +119,14 @@ describe('review-2026-07-10 regressions', () => {
     expect(events.filter((t) => t === 'run_completed')).toHaveLength(1);
   });
 
-  it('completeRun merges evidence_links/files_changed instead of replacing', () => {
+  it('completeRun merges evidence_links/files_changed instead of replacing', async () => {
     const handle = makeRun();
     const path = join(handle.runDir, 'run.json');
     const record = JSON.parse(readFileSync(path, 'utf8')) as RunRecord;
     record.evidence_links = ['earlier-link.md'];
     record.files_changed = ['a.ts'];
     writeFileSync(path, JSON.stringify(record), 'utf8');
-    const completed = completeRun(handle, {
+    const completed = await completeRun(handle, {
       evidenceLinks: ['evidence.md'],
       filesChanged: ['a.ts', 'b.ts'],
     });
