@@ -1,0 +1,2 @@
+[error] Failed to load resource: the server responded with a status of 404 (File not found)
+[warning] The powerPreference option is currently ignored when calling requestAdapter() on Windows. See https://crbug.com/369219127

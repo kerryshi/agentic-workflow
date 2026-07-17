@@ -1,0 +1,42 @@
+{
+  "run_id": "2026-07-15_1936_add-the-deferred-collect-staleness-health-check",
+  "created_at": "2026-07-15T19:36:39-04:00",
+  "completed_at": "2026-07-16T21:22:29-04:00",
+  "machine": "windows",
+  "repo": "C:/Users/PC/Desktop/Sandbox Testing/ai news spider",
+  "repo_name": "ai news spider",
+  "branch": "master",
+  "worktree": null,
+  "objective": "Add the deferred collect-staleness health check to the ai-news-spider VS Code digest surface: warn visibly when the last successful collect is older than 25 minutes, because the 2026-07-05 Jetson ICS outage proved silent staleness is this system's real failure mode; read STATUS.md and existing digest code first, follow the repo's existing conventions and test style, and do not touch the Jetson deploy path (blocked on JETSON_HOST, a Kerry-only env var).",
+  "user_prompt_summary": "",
+  "status_path": "",
+  "risk_level": "low",
+  "agent": {
+    "agent_id": "claude-code",
+    "agent_role": "executor",
+    "surface": "harness",
+    "model": null,
+    "adapter_version": "v2-harness"
+  },
+  "status": "complete",
+  "validation_plan": [
+    ".venv/Scripts/python -m pytest tests/test_collect_health.py tests/test_markdown_digest.py tests/test_html_digest.py tests/test_store.py -q",
+    ".venv/Scripts/python -m pytest -q",
+    ".venv/Scripts/python -c \"from datetime import datetime, timedelta, timezone; from engine.digest import collect_health, render_markdown, STALE_AFTER_MINUTES; now = datetime(2026, 7, 16, 12, 0, tzinfo=timezone.utc); stale = collect_health((now - timedelta(hours=74.5)).isoformat(), now=now); fresh = collect_health((now - timedelta(minutes=5)).isoformat(), now=now); unknown = collect_health(None, now=now); assert stale['stale'] and unknown['stale'] and not fresh['stale']; assert STALE_AFTER_MINUTES == 25; empty = render_markdown([], health=stale); assert 'Collection may have stopped' in empty, 'stale banner missing from EMPTY digest (the 2026-07-05 outage shape)'; assert 'Collection may have stopped' not in render_markdown([], health=fresh); assert 'Collection may have stopped' not in render_markdown([]); print('OK: stale banner renders on empty digest; fresh/None stay silent')\"",
+    "cd extension && npm run compile",
+    "grep -q 'statusBarItem.warningBackground' extension/out/extension.js && echo 'OK: out/extension.js regenerated with the warning badge state'"
+  ],
+  "files_changed": [
+    "engine/digest.py",
+    "engine/cli.py",
+    "tests/test_collect_health.py",
+    "extension/src/extension.ts",
+    "STATUS.md"
+  ],
+  "linked_failures": [],
+  "evidence_links": [
+    "evidence.md"
+  ],
+  "reviewer_result": "review stage: see review.md",
+  "final_outcome": "pipeline feature completed (8 stages)"
+}

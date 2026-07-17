@@ -1,0 +1,17 @@
+{
+  "case_id": "CASE-0023",
+  "created_at": "2026-07-15T19:25:15-04:00",
+  "resolved_at": "2026-07-15T19:25:28-04:00",
+  "machine": "windows",
+  "linked_run": "2026-07-15_1919_publish-readiness-sweep-fix-doc-drift-across-rep",
+  "repo": "C:/Users/PC/brain",
+  "repo_name": "brain",
+  "commit_or_branch": "master",
+  "summary": "distill marked inbox entries Distilled while the note files were never written (13 phantom notes 2026-07-12, 4 more 2026-07-13)",
+  "failure_class": "weak_verification",
+  "severity": "must_fix",
+  "repro_command": "Interrupt a /distill run after it moves inbox lines to Distilled but before it writes the note files; LEARNINGS.md then carries [[links]] to notes that do not exist (observed in brain commits 4649d82 and 507fb3c repair notes)",
+  "status": "fixed",
+  "prevention_layer": "skill update (write-then-mark ordering + step-7 link verification); brain INDEX theme 1 promoted to the global brief the same day (a check you didn't watch fail is not a check)",
+  "regression_test": ""
+}

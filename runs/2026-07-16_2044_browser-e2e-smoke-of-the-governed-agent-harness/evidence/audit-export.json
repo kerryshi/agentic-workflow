@@ -1,0 +1,961 @@
+{
+  "schema": "governed-agent-audit/v1",
+  "exportedAt": "2026-07-17T01:03:49.264Z",
+  "policyRev": 2,
+  "policy": {
+    "version": "1.0",
+    "note": "Deny-by-default. Tools absent from `tools` are ALWAYS denied - not configurable. judge:true routes the call to Tier 2 when Tier 1 passes; humanGate:true always requires click-to-approve, regardless of model verdicts. [e2e-touched]",
+    "limits": {
+      "maxSteps": 12,
+      "maxToolCallsPerRun": 16
+    },
+    "tools": {
+      "now": {
+        "allow": true,
+        "maxCallsPerRun": 8,
+        "judge": false,
+        "humanGate": false
+      },
+      "memory_get": {
+        "allow": true,
+        "maxCallsPerRun": 12,
+        "judge": false,
+        "humanGate": false
+      },
+      "memory_list": {
+        "allow": true,
+        "maxCallsPerRun": 8,
+        "judge": false,
+        "humanGate": false
+      },
+      "memory_set": {
+        "allow": true,
+        "maxCallsPerRun": 8,
+        "judge": true,
+        "humanGate": false,
+        "maxValueChars": 2000
+      },
+      "js_eval": {
+        "allow": true,
+        "maxCallsPerRun": 6,
+        "judge": true,
+        "humanGate": false,
+        "maxCodeChars": 4000,
+        "blockPatterns": [
+          "importScripts",
+          "XMLHttpRequest",
+          "WebSocket",
+          "EventSource",
+          "fetch(",
+          "indexedDB",
+          "caches",
+          "navigator."
+        ]
+      },
+      "fetch_url": {
+        "allow": true,
+        "maxCallsPerRun": 4,
+        "judge": false,
+        "humanGate": true,
+        "httpsOnly": true,
+        "allowedDomains": [
+          "api.github.com",
+          "raw.githubusercontent.com",
+          "en.wikipedia.org",
+          "jsonplaceholder.typicode.com",
+          "httpbin.org"
+        ]
+      }
+    }
+  },
+  "entries": [
+    {
+      "id": "a1",
+      "ts": "2026-07-17T00:55:15.351Z",
+      "runId": "run1",
+      "step": 1,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "js_eval",
+        "args": {
+          "code": "var result = Math.pow(17, 13) % 101; return result;"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "review",
+          "reason": "passed hard rules; policy marks this tool for judge review (calls 0/6, run 0/16)",
+          "ms": 0
+        },
+        {
+          "tier": "judge",
+          "verdict": "escalate",
+          "reason": "judge unreachable (signal timed out); failing safe to human",
+          "ms": 90001
+        },
+        {
+          "tier": "human",
+          "verdict": "allow",
+          "reason": "human clicked Approve",
+          "ms": 160.69999998807907
+        }
+      ],
+      "outcome": "executed",
+      "resultPreview": "result: 64"
+    },
+    {
+      "id": "a2",
+      "ts": "2026-07-17T00:56:50.013Z",
+      "runId": "run1",
+      "step": 2,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "memory_set",
+        "args": {
+          "key": "result",
+          "value": "64"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "review",
+          "reason": "passed hard rules; policy marks this tool for judge review (calls 0/8, run 1/16)",
+          "ms": 0
+        },
+        {
+          "tier": "judge",
+          "verdict": "escalate",
+          "reason": "judge unreachable (signal timed out); failing safe to human",
+          "ms": 90001
+        },
+        {
+          "tier": "human",
+          "verdict": "allow",
+          "reason": "human clicked Approve",
+          "ms": 831.3000000119209
+        }
+      ],
+      "outcome": "executed",
+      "resultPreview": "stored \"result\" (2 chars)"
+    },
+    {
+      "id": "a3",
+      "ts": "2026-07-17T00:58:34.269Z",
+      "runId": "run2",
+      "step": 1,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "fetch_url",
+        "args": {
+          "url": "https://api.github.com/repos/mlc-ai/web-llm"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "allow",
+          "reason": "allowed by policy (calls 0/4, run 0/16)",
+          "ms": 0
+        },
+        {
+          "tier": "human",
+          "verdict": "allow",
+          "reason": "human clicked Approve",
+          "ms": 858.1000000238419
+        }
+      ],
+      "outcome": "executed",
+      "resultPreview": "HTTP 200 [application/json; charset=utf-8]\n{\n  \"id\": 627561173,\n  \"node_id\": \"R_kgDOJWfS1Q\",\n  \"name\": \"web-llm\",\n  \"full_name\": \"mlc-ai/web-llm\",\n  \"private\": false,\n  \"owner\": {\n    \"login\": \"mlc-ai\",\n    \"id\": 106173866,\n    \"node_id\": \"O_kgDOBlQVqg\",\n    \"avatar_url\": \"https://avatars.githubusercontent.com/u/106173866?v=4\",\n    \"gravatar_id\": \"\",\n    \"url\": \"https://api.github.com/users/mlc-ai ...[truncated 2669 chars]"
+    },
+    {
+      "id": "a4",
+      "ts": "2026-07-17T00:58:51.511Z",
+      "runId": "run2",
+      "step": 2,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "fetch_url",
+        "args": {
+          "url": "https://api.github.com/repos/mlc-ai/web-llm"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "allow",
+          "reason": "allowed by policy (calls 1/4, run 1/16)",
+          "ms": 0
+        },
+        {
+          "tier": "human",
+          "verdict": "allow",
+          "reason": "human clicked Approve",
+          "ms": 767.5999999940395
+        }
+      ],
+      "outcome": "executed",
+      "resultPreview": "HTTP 200 [application/json; charset=utf-8]\n{\n  \"id\": 627561173,\n  \"node_id\": \"R_kgDOJWfS1Q\",\n  \"name\": \"web-llm\",\n  \"full_name\": \"mlc-ai/web-llm\",\n  \"private\": false,\n  \"owner\": {\n    \"login\": \"mlc-ai\",\n    \"id\": 106173866,\n    \"node_id\": \"O_kgDOBlQVqg\",\n    \"avatar_url\": \"https://avatars.githubusercontent.com/u/106173866?v=4\",\n    \"gravatar_id\": \"\",\n    \"url\": \"https://api.github.com/users/mlc-ai ...[truncated 2669 chars]"
+    },
+    {
+      "id": "a5",
+      "ts": "2026-07-17T00:59:09.866Z",
+      "runId": "run2",
+      "step": 3,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "fetch_url",
+        "args": {
+          "url": "https://api.github.com/repos/mlc-ai/web-llm"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "allow",
+          "reason": "allowed by policy (calls 2/4, run 2/16)",
+          "ms": 0
+        },
+        {
+          "tier": "human",
+          "verdict": "allow",
+          "reason": "human clicked Approve",
+          "ms": 547.3000000119209
+        }
+      ],
+      "outcome": "executed",
+      "resultPreview": "HTTP 200 [application/json; charset=utf-8]\n{\n  \"id\": 627561173,\n  \"node_id\": \"R_kgDOJWfS1Q\",\n  \"name\": \"web-llm\",\n  \"full_name\": \"mlc-ai/web-llm\",\n  \"private\": false,\n  \"owner\": {\n    \"login\": \"mlc-ai\",\n    \"id\": 106173866,\n    \"node_id\": \"O_kgDOBlQVqg\",\n    \"avatar_url\": \"https://avatars.githubusercontent.com/u/106173866?v=4\",\n    \"gravatar_id\": \"\",\n    \"url\": \"https://api.github.com/users/mlc-ai ...[truncated 2669 chars]"
+    },
+    {
+      "id": "a6",
+      "ts": "2026-07-17T00:59:29.500Z",
+      "runId": "run2",
+      "step": 4,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "fetch_url",
+        "args": {
+          "url": "https://api.github.com/repos/mlc-ai/web-llm"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "allow",
+          "reason": "allowed by policy (calls 3/4, run 3/16)",
+          "ms": 0
+        },
+        {
+          "tier": "human",
+          "verdict": "allow",
+          "reason": "human clicked Approve",
+          "ms": 1068.199999988079
+        }
+      ],
+      "outcome": "executed",
+      "resultPreview": "HTTP 200 [application/json; charset=utf-8]\n{\n  \"id\": 627561173,\n  \"node_id\": \"R_kgDOJWfS1Q\",\n  \"name\": \"web-llm\",\n  \"full_name\": \"mlc-ai/web-llm\",\n  \"private\": false,\n  \"owner\": {\n    \"login\": \"mlc-ai\",\n    \"id\": 106173866,\n    \"node_id\": \"O_kgDOBlQVqg\",\n    \"avatar_url\": \"https://avatars.githubusercontent.com/u/106173866?v=4\",\n    \"gravatar_id\": \"\",\n    \"url\": \"https://api.github.com/users/mlc-ai ...[truncated 2669 chars]"
+    },
+    {
+      "id": "a7",
+      "ts": "2026-07-17T00:59:51.256Z",
+      "runId": "run2",
+      "step": 5,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "fetch_url",
+        "args": {
+          "url": "https://api.github.com/repos/mlc-ai/web-llm"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "deny",
+          "reason": "per-tool budget exhausted for \"fetch_url\" (4/4)",
+          "ms": 0
+        }
+      ],
+      "outcome": "blocked:policy",
+      "resultPreview": null
+    },
+    {
+      "id": "a8",
+      "ts": "2026-07-17T00:59:56.112Z",
+      "runId": "run2",
+      "step": 6,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "memory_get",
+        "args": {
+          "key": "star_count"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "allow",
+          "reason": "allowed by policy (calls 0/12, run 4/16)",
+          "ms": 0
+        }
+      ],
+      "outcome": "executed",
+      "resultPreview": "(no value for key \"star_count\")"
+    },
+    {
+      "id": "a9",
+      "ts": "2026-07-17T01:00:00.531Z",
+      "runId": "run2",
+      "step": 7,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "memory_get",
+        "args": {
+          "key": "star_count"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "allow",
+          "reason": "allowed by policy (calls 1/12, run 5/16)",
+          "ms": 0
+        }
+      ],
+      "outcome": "executed",
+      "resultPreview": "(no value for key \"star_count\")"
+    },
+    {
+      "id": "a10",
+      "ts": "2026-07-17T01:00:05.619Z",
+      "runId": "run2",
+      "step": 8,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "memory_set",
+        "args": {
+          "key": "star_count",
+          "value": 100
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "review",
+          "reason": "passed hard rules; policy marks this tool for judge review (calls 0/8, run 6/16)",
+          "ms": 0
+        },
+        {
+          "tier": "judge",
+          "verdict": "escalate",
+          "reason": "judge unreachable (signal timed out); failing safe to human",
+          "ms": 90001.5
+        },
+        {
+          "tier": "human",
+          "verdict": "allow",
+          "reason": "human clicked Approve",
+          "ms": 342.69999998807907
+        }
+      ],
+      "outcome": "executed",
+      "resultPreview": "stored \"star_count\" (3 chars)"
+    },
+    {
+      "id": "a11",
+      "ts": "2026-07-17T01:01:40.181Z",
+      "runId": "run2",
+      "step": 9,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "memory_get",
+        "args": {
+          "key": "star_count"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "allow",
+          "reason": "allowed by policy (calls 2/12, run 7/16)",
+          "ms": 0
+        }
+      ],
+      "outcome": "executed",
+      "resultPreview": "100"
+    },
+    {
+      "id": "a12",
+      "ts": "2026-07-17T01:01:48.799Z",
+      "runId": "run2",
+      "step": 11,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "memory_get",
+        "args": {
+          "key": "star_count"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "allow",
+          "reason": "allowed by policy (calls 3/12, run 8/16)",
+          "ms": 0
+        }
+      ],
+      "outcome": "executed",
+      "resultPreview": "100"
+    },
+    {
+      "id": "a13",
+      "ts": "2026-07-17T01:02:03.059Z",
+      "runId": "run3",
+      "step": 1,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "fetch_url",
+        "args": {
+          "url": "https://example.com"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "deny",
+          "reason": "fetch_url: domain \"example.com\" not on allowlist",
+          "ms": 0
+        }
+      ],
+      "outcome": "blocked:policy",
+      "resultPreview": null
+    },
+    {
+      "id": "a14",
+      "ts": "2026-07-17T01:02:06.888Z",
+      "runId": "run3",
+      "step": 2,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "fetch_url",
+        "args": {
+          "url": "https://example.com"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "deny",
+          "reason": "fetch_url: domain \"example.com\" not on allowlist",
+          "ms": 0
+        }
+      ],
+      "outcome": "blocked:policy",
+      "resultPreview": null
+    },
+    {
+      "id": "a15",
+      "ts": "2026-07-17T01:02:10.761Z",
+      "runId": "run3",
+      "step": 3,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "fetch_url",
+        "args": {
+          "url": "https://example.com"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "deny",
+          "reason": "fetch_url: domain \"example.com\" not on allowlist",
+          "ms": 0
+        }
+      ],
+      "outcome": "blocked:policy",
+      "resultPreview": null
+    },
+    {
+      "id": "a16",
+      "ts": "2026-07-17T01:02:14.667Z",
+      "runId": "run3",
+      "step": 4,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "fetch_url",
+        "args": {
+          "url": "https://example.com"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "deny",
+          "reason": "fetch_url: domain \"example.com\" not on allowlist",
+          "ms": 0
+        }
+      ],
+      "outcome": "blocked:policy",
+      "resultPreview": null
+    },
+    {
+      "id": "a17",
+      "ts": "2026-07-17T01:02:18.544Z",
+      "runId": "run3",
+      "step": 5,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "fetch_url",
+        "args": {
+          "url": "https://example.com"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "deny",
+          "reason": "fetch_url: domain \"example.com\" not on allowlist",
+          "ms": 0
+        }
+      ],
+      "outcome": "blocked:policy",
+      "resultPreview": null
+    },
+    {
+      "id": "a18",
+      "ts": "2026-07-17T01:02:22.461Z",
+      "runId": "run3",
+      "step": 6,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "fetch_url",
+        "args": {
+          "url": "https://example.com"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "deny",
+          "reason": "fetch_url: domain \"example.com\" not on allowlist",
+          "ms": 0
+        }
+      ],
+      "outcome": "blocked:policy",
+      "resultPreview": null
+    },
+    {
+      "id": "a19",
+      "ts": "2026-07-17T01:02:26.376Z",
+      "runId": "run3",
+      "step": 7,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "fetch_url",
+        "args": {
+          "url": "https://example.com"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "deny",
+          "reason": "fetch_url: domain \"example.com\" not on allowlist",
+          "ms": 0
+        }
+      ],
+      "outcome": "blocked:policy",
+      "resultPreview": null
+    },
+    {
+      "id": "a20",
+      "ts": "2026-07-17T01:02:30.346Z",
+      "runId": "run3",
+      "step": 8,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "fetch_url",
+        "args": {
+          "url": "https://example.com"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "deny",
+          "reason": "fetch_url: domain \"example.com\" not on allowlist",
+          "ms": 0
+        }
+      ],
+      "outcome": "blocked:policy",
+      "resultPreview": null
+    },
+    {
+      "id": "a21",
+      "ts": "2026-07-17T01:02:34.396Z",
+      "runId": "run3",
+      "step": 9,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "fetch_url",
+        "args": {
+          "url": "https://example.com"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "deny",
+          "reason": "fetch_url: domain \"example.com\" not on allowlist",
+          "ms": 0
+        }
+      ],
+      "outcome": "blocked:policy",
+      "resultPreview": null
+    },
+    {
+      "id": "a22",
+      "ts": "2026-07-17T01:02:38.471Z",
+      "runId": "run3",
+      "step": 10,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "fetch_url",
+        "args": {
+          "url": "https://example.com"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "deny",
+          "reason": "fetch_url: domain \"example.com\" not on allowlist",
+          "ms": 0
+        }
+      ],
+      "outcome": "blocked:policy",
+      "resultPreview": null
+    },
+    {
+      "id": "a23",
+      "ts": "2026-07-17T01:02:42.599Z",
+      "runId": "run3",
+      "step": 11,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "fetch_url",
+        "args": {
+          "url": "https://example.com"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "deny",
+          "reason": "fetch_url: domain \"example.com\" not on allowlist",
+          "ms": 0
+        }
+      ],
+      "outcome": "blocked:policy",
+      "resultPreview": null
+    },
+    {
+      "id": "a24",
+      "ts": "2026-07-17T01:02:46.806Z",
+      "runId": "run3",
+      "step": 12,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "fetch_url",
+        "args": {
+          "url": "https://example.com"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "deny",
+          "reason": "fetch_url: domain \"example.com\" not on allowlist",
+          "ms": 0
+        }
+      ],
+      "outcome": "blocked:policy",
+      "resultPreview": null
+    },
+    {
+      "id": "a25",
+      "ts": "2026-07-17T01:03:02.209Z",
+      "runId": "run4",
+      "step": 1,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "tool.name",
+        "args": {}
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "deny",
+          "reason": "tool \"tool.name\" not in policy (deny-by-default)",
+          "ms": 0
+        }
+      ],
+      "outcome": "blocked:policy",
+      "resultPreview": null
+    },
+    {
+      "id": "a26",
+      "ts": "2026-07-17T01:03:06.103Z",
+      "runId": "run4",
+      "step": 2,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "tool.name",
+        "args": {
+          "key": "memory_keys"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "deny",
+          "reason": "tool \"tool.name\" not in policy (deny-by-default)",
+          "ms": 0
+        }
+      ],
+      "outcome": "blocked:policy",
+      "resultPreview": null
+    },
+    {
+      "id": "a27",
+      "ts": "2026-07-17T01:03:10.084Z",
+      "runId": "run4",
+      "step": 3,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "tool.name",
+        "args": {
+          "key": "memory_keys"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "deny",
+          "reason": "tool \"tool.name\" not in policy (deny-by-default)",
+          "ms": 0
+        }
+      ],
+      "outcome": "blocked:policy",
+      "resultPreview": null
+    },
+    {
+      "id": "a28",
+      "ts": "2026-07-17T01:03:14.091Z",
+      "runId": "run4",
+      "step": 4,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "tool.name",
+        "args": {
+          "key": "memory_keys"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "deny",
+          "reason": "tool \"tool.name\" not in policy (deny-by-default)",
+          "ms": 0
+        }
+      ],
+      "outcome": "blocked:policy",
+      "resultPreview": null
+    },
+    {
+      "id": "a29",
+      "ts": "2026-07-17T01:03:18.150Z",
+      "runId": "run4",
+      "step": 5,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "tool.name",
+        "args": {
+          "key": "memory_keys"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "deny",
+          "reason": "tool \"tool.name\" not in policy (deny-by-default)",
+          "ms": 0
+        }
+      ],
+      "outcome": "blocked:policy",
+      "resultPreview": null
+    },
+    {
+      "id": "a30",
+      "ts": "2026-07-17T01:03:22.308Z",
+      "runId": "run4",
+      "step": 6,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "tool.name",
+        "args": {
+          "key": "memory_keys"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "deny",
+          "reason": "tool \"tool.name\" not in policy (deny-by-default)",
+          "ms": 0
+        }
+      ],
+      "outcome": "blocked:policy",
+      "resultPreview": null
+    },
+    {
+      "id": "a31",
+      "ts": "2026-07-17T01:03:26.462Z",
+      "runId": "run4",
+      "step": 7,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "tool.name",
+        "args": {
+          "key": "memory_keys"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "deny",
+          "reason": "tool \"tool.name\" not in policy (deny-by-default)",
+          "ms": 0
+        }
+      ],
+      "outcome": "blocked:policy",
+      "resultPreview": null
+    },
+    {
+      "id": "a32",
+      "ts": "2026-07-17T01:03:30.665Z",
+      "runId": "run4",
+      "step": 8,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "tool.name",
+        "args": {
+          "key": "memory_keys"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "deny",
+          "reason": "tool \"tool.name\" not in policy (deny-by-default)",
+          "ms": 0
+        }
+      ],
+      "outcome": "blocked:policy",
+      "resultPreview": null
+    },
+    {
+      "id": "a33",
+      "ts": "2026-07-17T01:03:34.883Z",
+      "runId": "run4",
+      "step": 9,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "tool.name",
+        "args": {
+          "key": "memory_keys"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "deny",
+          "reason": "tool \"tool.name\" not in policy (deny-by-default)",
+          "ms": 0
+        }
+      ],
+      "outcome": "blocked:policy",
+      "resultPreview": null
+    },
+    {
+      "id": "a34",
+      "ts": "2026-07-17T01:03:39.179Z",
+      "runId": "run4",
+      "step": 10,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "tool.name",
+        "args": {
+          "key": "memory_keys"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "deny",
+          "reason": "tool \"tool.name\" not in policy (deny-by-default)",
+          "ms": 0
+        }
+      ],
+      "outcome": "blocked:policy",
+      "resultPreview": null
+    },
+    {
+      "id": "a35",
+      "ts": "2026-07-17T01:03:43.552Z",
+      "runId": "run4",
+      "step": 11,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "tool.name",
+        "args": {
+          "key": "memory_keys"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "deny",
+          "reason": "tool \"tool.name\" not in policy (deny-by-default)",
+          "ms": 0
+        }
+      ],
+      "outcome": "blocked:policy",
+      "resultPreview": null
+    },
+    {
+      "id": "a36",
+      "ts": "2026-07-17T01:03:47.963Z",
+      "runId": "run4",
+      "step": 12,
+      "policyRev": 1,
+      "proposal": {
+        "tool": "tool.name",
+        "args": {
+          "key": "memory_keys"
+        }
+      },
+      "tiers": [
+        {
+          "tier": "policy",
+          "verdict": "deny",
+          "reason": "tool \"tool.name\" not in policy (deny-by-default)",
+          "ms": 0
+        }
+      ],
+      "outcome": "blocked:policy",
+      "resultPreview": null
+    }
+  ]
+}

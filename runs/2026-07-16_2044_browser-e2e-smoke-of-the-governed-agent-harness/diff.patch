@@ -1,0 +1,46 @@
+diff --git a/STATUS.md b/STATUS.md
+index 6d5ee45..27c9b31 100644
+--- a/STATUS.md
++++ b/STATUS.md
+@@ -11,20 +11,31 @@ Note: the pre-governance harness from the earlier session was delivered in-chat
+ saved to disk, so this file is a full rebuild to the handoff spec (agent loop, JSON tool
+ calling, worker-sandboxed js_eval, trace rail) plus the governance layer — not a patch.
+ 
++**Browser E2E: DONE (2026-07-16, automated).** Playwright driving system Chrome (headed,
++WebGPU on the 5070) ran the full arc — Qwen2.5-1.5B loaded in-browser, all four demo tasks,
++human-gate cards screenshotted and approved, blocked-domain fetch denied at tier 1 with zero
++gates, mid-run policy edit (rev 1→2), audit export (36 entries), deterministic replay
++(0 verdicts changed vs edited policy) — 10/10 checks green. Real Ollama judge wired and
++verified: **llama3.2:latest returns real verdicts in ~1.1 s warm** ("allow — js_eval is
++configured to allow..."). Evidence (screenshots incl. the pending gate card, audit JSON,
++results.json): `agentic-workflow/runs/2026-07-16_2044_browser-e2e-smoke-of-the-governed-agent-harness/evidence/`.
++
++**Judge model answer (was an open question):** qwen3:4b is unusable as judge — thinking
++mode burns 45–90 s per verdict (its escalate-on-timeout fail-safe worked, which is itself
++good evidence). llama3.2:3b gives sub-second warm verdicts with clean JSON. Default the
++judge to llama3.2; qwen2.5:7b untested (not installed).
++
+ **In progress:** nothing.
+ 
+-**Next actions (all need a human at the browser):**
+-1. Browser smoke test: `python -m http.server 8000`, load Qwen2.5-1.5B in Chrome, run the
+-   four demo tasks; confirm gate card, mid-run policy toggle, export, replay.
+-2. Wire the real judge: Ollama on this desktop (`OLLAMA_ORIGINS="*"`), test allow/deny/
+-   escalate verdicts end-to-end; try from the MacBook over Tailscale.
+-3. Record the demo arc (see README) for the portfolio; consider a short screen capture.
+-4. Decide on a public remote (portfolio piece — ask before pushing).
++**Next actions:**
++1. Record the demo arc (see README) for the portfolio; consider a short screen capture
++   (the E2E screenshots already cover the stills).
++2. Try the judge from the MacBook over Tailscale (`OLLAMA_ORIGINS` needed for non-localhost).
++3. Decide on a public remote (portfolio piece — ask before pushing). A dated git bundle
++   backup exists at `C:\Users\PC\backups\git-bundles\` (2026-07-16) pending that decision.
+ 
+ **Open questions:**
+-- Judge model choice on the 5070 (qwen2.5:7b vs something smaller/faster for sub-second
+-  verdicts).
+ - Whether to add an "import audit JSON + replay" path (currently replay works on the
+   in-page log only).
+ 
+-**Last updated:** 2026-07-14 (session: governance layer build from handoff brief).
++**Last updated:** 2026-07-16 (session: automated browser E2E + real judge wiring).

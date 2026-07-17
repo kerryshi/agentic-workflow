@@ -643,6 +643,18 @@ export class Engine {
       result = await drive(undefined);
     }
 
+    if (result.resume_unsupported) {
+      // We offered a session (supportsResume gate) but THIS installed CLI has no
+      // resume subcommand; the driver ran a fresh context — record it, don't hide it.
+      this.log(`stage ${stage.name}: installed ${agentId} CLI cannot resume — ran a fresh context`);
+      logRunEvent(handle, {
+        event: 'session_resume_unsupported',
+        stage: stage.name,
+        agent: agentId,
+        session_id: resumeId,
+      });
+    }
+
     // Append-only: every execution becomes its own attempt; the stage's
     // top-level fields mirror the latest one for convenience.
     const attempt: StageAttempt = {
@@ -1034,6 +1046,9 @@ export class Engine {
         '',
         ...res.results.flatMap((r) => [
           `## \`${r.command}\` — ${r.passed ? 'PASS' : 'FAIL'} (exit ${r.timed_out ? 'TIMED OUT' : String(r.exit_code)})`,
+          ...(r.normalized_command
+            ? [`_ran as \`${r.normalized_command}\` (backslash paths normalized for bash — CASE-0022)_`]
+            : []),
           '```',
           redactSecrets(r.output_tail),
           '```',

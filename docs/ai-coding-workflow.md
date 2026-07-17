@@ -22,7 +22,7 @@ what happened.
 4. **Build**
    - Let the selected agent work inside the repo/worktree.
    - Keep edits scoped to the objective.
-   - Append important commands or checks with `update_run.ps1`.
+   - Append important commands or checks with `harness update-run`.
 
 5. **Review**
    - Run an independent review pass.
@@ -35,7 +35,7 @@ what happened.
    - Be explicit when validation is user-confirmed or externally verified.
 
 7. **Ship**
-   - Complete the run with `complete_run.ps1`.
+   - Complete the run with `harness complete-run`.
    - Capture a safe diff when useful.
    - Leave `final.md` readable without chat history.
 
@@ -46,7 +46,7 @@ what happened.
 ## Agent Selection
 
 Agents are peers: no agent owns a role. Any adapter can plan, build, review, or verify; the role is
-assigned per run (`-AgentRole`), never fixed per agent. Pick the agent for a run by fit, cost, and
+assigned per run (`--role`), never fixed per agent. Pick the agent for a run by fit, cost, and
 availability.
 
 - `claude-code`, `codex`, and local/open-source agents plug in through the same contract.

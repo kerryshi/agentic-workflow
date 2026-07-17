@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { runProcess, tail } from './adapters/proc.js';
 
 /**
@@ -8,6 +10,8 @@ import { runProcess, tail } from './adapters/proc.js';
  */
 export interface NativeCommandResult {
   command: string;
+  /** Present when backslash paths were rewritten for bash (CASE-0022). */
+  normalized_command?: string;
   passed: boolean;
   exit_code: number | null;
   timed_out: boolean;
@@ -24,6 +28,30 @@ export interface NativeVerifyResult {
 }
 
 const COMMAND_TIMEOUT_MS = 10 * 60 * 1000;
+
+// Plans authored on Windows write .venv\Scripts\python; bash -c strips bare
+// backslashes (.venvScriptspython: exit 127 — CASE-0022). Rewrite a token to
+// forward slashes only when it is path-shaped AND the forward-slash form
+// resolves in the repo as-is or with a Windows executable extension (the
+// planner writes .venv\Scripts\python; the file is python.exe). Requiring the
+// FULL path to resolve — never just its dirname — keeps regex escapes like
+// foo\.py untouched even when foo/ is a real directory. Best-effort guard:
+// the plan brief's forward-slash rule is the primary prevention.
+const SEG = String.raw`[\w.-]+`;
+const WIN_PATH_TOKEN = new RegExp(String.raw`^(?:[A-Za-z]:)?${SEG}(?:\\${SEG})+$`);
+const EXEC_EXTS = ['', '.exe', '.cmd', '.bat'];
+
+export function normalizeCommandForBash(command: string, cwd: string): string {
+  return command
+    .split(/(\s+)/)
+    .map((token) => {
+      if (!WIN_PATH_TOKEN.test(token)) return token;
+      const fwd = token.replace(/\\/g, '/');
+      const abs = /^[A-Za-z]:/.test(fwd) ? fwd : join(cwd, fwd);
+      return EXEC_EXTS.some((ext) => existsSync(abs + ext)) ? fwd : token;
+    })
+    .join('');
+}
 
 async function runShell(cmd: string, cwd: string, timeoutMs: number) {
   // bash -c on every platform first: Git Bash is standing on the desktop
@@ -61,9 +89,11 @@ export async function nativeVerify(
   const started = Date.now();
   const results: NativeCommandResult[] = [];
   for (const command of commands) {
-    const out = await runShell(command, repo, commandTimeoutMs);
+    const normalized = normalizeCommandForBash(command, repo);
+    const out = await runShell(normalized, repo, commandTimeoutMs);
     results.push({
       command,
+      ...(normalized !== command ? { normalized_command: normalized } : {}),
       passed: !out.timedOut && !out.spawnError && out.code === 0,
       exit_code: out.code,
       timed_out: out.timedOut,

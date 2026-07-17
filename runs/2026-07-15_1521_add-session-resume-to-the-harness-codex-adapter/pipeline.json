@@ -1,0 +1,354 @@
+{
+  "schema_version": 2,
+  "review_round": 2,
+  "run_id": "2026-07-15_1521_add-session-resume-to-the-harness-codex-adapter",
+  "template": "feature",
+  "repo": "C:\\Users\\PC\\agentic-workflow",
+  "task": "Add session resume to the harness codex adapter. All anchors are given below - do NOT explore the repo beyond these files. Files: harness/src/adapters/codex.ts (the adapter to change; currently has NO session handling - see the NOTE near line 100 that DriveOpts.maxTurns has no codex exec equivalent); harness/src/adapters/claude.ts (the reference implementation: captures session_id from the result envelope near line 104, honors opts.resumeSession); harness/src/adapters/types.ts (DriveOpts, line ~14); harness/src/engine.ts lines 591-617 (builder-lineage stages pass resumeSession from pipeline.builder_session_id; codex-driven stages currently fall back to fresh contexts silently - PORTFOLIO 3.1 plan #6). Change: have the codex adapter emit a session/thread id after a drive and honor DriveOpts.resumeSession where the installed codex CLI supports it (verify capability with 'codex exec --help', e.g. a resume/session flag); if the CLI cannot resume, keep the fresh-context fallback but record it explicitly in the stage events instead of silently. Validation: existing harness vitest suite stays green; new tests cover resume-with-session and the explicit-fallback path, following the existing adapter test style.",
+  "answers": "# Grill questions\n\nAnswer inline under each question, then resume the run.\n\n1. When the installed codex CLI cannot resume (no `resume` subcommand in `codex exec --help`), how should the fallback be recorded so it counts as being 'in the stage events' — a structured field on the returned StageResult (adapter-observable, matching the stub-driven adapter test style), a run-event emitted via logRunEvent (engine-side), or both? This determines the types.ts/engine.ts footprint and how the new fallback test asserts.\n   A: Yes, engine.ts is in scope - the logRunEvent recording requires it. Keep the engine diff minimal: emit the event where the resume decision is made (the resumeId / builder_session_id gate around lines 591-617); everything else stays in codex.ts + types.ts + tests. Both. Add a structured field on the returned StageResult (so the stub-driven adapter tests assert it directly) AND emit a run event via logRunEvent so the fallback is visible in the run's event log. 'Stage events' in the task means the run-event log; the StageResult field is the test-observable surface.\n\n2. Is editing engine.ts in scope for this stage, or should the change stay confined to codex.ts (plus types.ts and tests)? The happy-path resume works with only supportsResume=true + session_id emission since the engine already gates on supportsResume and captures result.session_id generically, but recording the fallback in the run-event log would require an engine.ts edit.\n   A:\n",
+  "builder": "claude",
+  "reviewer": "codex",
+  "model": null,
+  "skip_permissions": true,
+  "isolated": true,
+  "agent_verify": false,
+  "risk_level": "medium",
+  "full_rereview": false,
+  "stage_budget_usd": null,
+  "current_stage": 8,
+  "validation_commands": [
+    "npm --prefix harness run typecheck",
+    "npm --prefix harness test",
+    "npm --prefix harness test -- codex-driver",
+    "npm --prefix harness run test:all"
+  ],
+  "files_changed": [
+    "harness/src/adapters/types.ts",
+    "harness/src/adapters/codex.ts",
+    "harness/src/engine.ts",
+    "harness/tests/codex-driver.test.ts"
+  ],
+  "fix_cycles": 1,
+  "last_must_fix": "- harness/src/adapters/codex.ts: Resume with `skipPermissions:false` is broken: buildExecArgs adds `--sandbox read-only`, but installed codex-cli 0.144.1 rejects that option for `codex exec resume` (`unexpected argument '--sandbox'`). Engine supports `skipPermissions:false`, so this valid DriveOpts combination fails instead of resuming or explicitly falling back. The stub currently masks the incompatibility.",
+  "stages": [
+    {
+      "name": "grill",
+      "status": "done",
+      "attempts": [
+        {
+          "status": "failed",
+          "agent": "claude",
+          "model": null,
+          "resumed": false,
+          "tokens": {
+            "input": 0,
+            "output": 0
+          },
+          "cost_usd": 0,
+          "duration_ms": 0,
+          "num_turns": 0,
+          "started_at": "2026-07-15T15:21:41-04:00",
+          "ended_at": "2026-07-15T15:23:15-04:00",
+          "error": "claude exited 1: error_max_turns"
+        },
+        {
+          "status": "parked",
+          "agent": "claude",
+          "model": null,
+          "resumed": false,
+          "tokens": {
+            "input": 9,
+            "output": 10063,
+            "cache_read": 165118,
+            "cache_creation": 24763
+          },
+          "cost_usd": 0.583023,
+          "duration_ms": 146789,
+          "num_turns": 12,
+          "started_at": "2026-07-15T15:25:05-04:00",
+          "ended_at": "2026-07-15T15:27:33-04:00",
+          "session_id": "d26178a1-9373-4ecc-aa1a-de9f98abd946",
+          "park_reason": "awaiting grill answers"
+        }
+      ],
+      "artifacts": [
+        "stage-grill-raw.txt",
+        "questions.md"
+      ],
+      "agent": "claude",
+      "model": null,
+      "started_at": "2026-07-15T15:25:05-04:00",
+      "tokens": {
+        "input": 9,
+        "output": 10063,
+        "cache_read": 165118,
+        "cache_creation": 24763
+      },
+      "cost_usd": 0.583023,
+      "duration_ms": 146789,
+      "num_turns": 12,
+      "ended_at": "2026-07-15T15:46:43-04:00"
+    },
+    {
+      "name": "plan",
+      "status": "done",
+      "attempts": [
+        {
+          "status": "done",
+          "agent": "claude",
+          "model": null,
+          "resumed": true,
+          "tokens": {
+            "input": 7,
+            "output": 10936,
+            "cache_read": 191182,
+            "cache_creation": 38454
+          },
+          "cost_usd": 0.753566,
+          "duration_ms": 139719,
+          "num_turns": 5,
+          "started_at": "2026-07-15T15:46:43-04:00",
+          "ended_at": "2026-07-15T15:49:05-04:00",
+          "session_id": "d26178a1-9373-4ecc-aa1a-de9f98abd946"
+        }
+      ],
+      "artifacts": [
+        "plan.md"
+      ],
+      "agent": "claude",
+      "model": null,
+      "started_at": "2026-07-15T15:46:43-04:00",
+      "tokens": {
+        "input": 7,
+        "output": 10936,
+        "cache_read": 191182,
+        "cache_creation": 38454
+      },
+      "cost_usd": 0.753566,
+      "duration_ms": 139719,
+      "num_turns": 5,
+      "ended_at": "2026-07-15T15:49:05-04:00"
+    },
+    {
+      "name": "approval",
+      "status": "done",
+      "attempts": [],
+      "artifacts": [],
+      "ended_at": "2026-07-15T15:51:11-04:00"
+    },
+    {
+      "name": "build",
+      "status": "done",
+      "attempts": [
+        {
+          "status": "done",
+          "agent": "claude",
+          "model": null,
+          "resumed": true,
+          "tokens": {
+            "input": 37,
+            "output": 13482,
+            "cache_read": 1566385,
+            "cache_creation": 30442
+          },
+          "cost_usd": 1.4248474999999998,
+          "duration_ms": 209395,
+          "num_turns": 20,
+          "started_at": "2026-07-15T15:51:11-04:00",
+          "ended_at": "2026-07-15T15:54:42-04:00",
+          "session_id": "d26178a1-9373-4ecc-aa1a-de9f98abd946"
+        }
+      ],
+      "artifacts": [],
+      "agent": "claude",
+      "model": null,
+      "started_at": "2026-07-15T15:51:11-04:00",
+      "tokens": {
+        "input": 37,
+        "output": 13482,
+        "cache_read": 1566385,
+        "cache_creation": 30442
+      },
+      "cost_usd": 1.4248474999999998,
+      "duration_ms": 209395,
+      "num_turns": 20,
+      "ended_at": "2026-07-15T15:54:42-04:00"
+    },
+    {
+      "name": "review",
+      "status": "done",
+      "attempts": [
+        {
+          "status": "done",
+          "agent": "codex",
+          "model": null,
+          "resumed": false,
+          "tokens": {
+            "input": 454537,
+            "output": 7504,
+            "cache_read": 402944
+          },
+          "cost_usd": 0,
+          "duration_ms": 244622,
+          "num_turns": 1,
+          "started_at": "2026-07-15T15:54:42-04:00",
+          "ended_at": "2026-07-15T15:58:47-04:00",
+          "review": {
+            "verdict": "must_fix",
+            "must_fix": [
+              {
+                "file": "harness/src/adapters/codex.ts",
+                "issue": "Resume with `skipPermissions:false` is broken: buildExecArgs adds `--sandbox read-only`, but installed codex-cli 0.144.1 rejects that option for `codex exec resume` (`unexpected argument '--sandbox'`). Engine supports `skipPermissions:false`, so this valid DriveOpts combination fails instead of resuming or explicitly falling back. The stub currently masks the incompatibility."
+              }
+            ],
+            "should_fix": [
+              {
+                "file": "harness/src/engine.ts",
+                "issue": "When resume is unsupported and the adapter runs fresh, `resumeId` remains defined, so the saved StageAttempt incorrectly records `resumed:true`, contradicting the fallback event."
+              }
+            ],
+            "round": 1
+          }
+        }
+      ],
+      "artifacts": [
+        "review-1.diff",
+        "review.md",
+        "review-1.md"
+      ],
+      "agent": "codex",
+      "model": null,
+      "started_at": "2026-07-15T15:54:42-04:00",
+      "tokens": {
+        "input": 454537,
+        "output": 7504,
+        "cache_read": 402944
+      },
+      "cost_usd": 0,
+      "duration_ms": 244622,
+      "num_turns": 1,
+      "ended_at": "2026-07-15T15:58:47-04:00"
+    },
+    {
+      "name": "build",
+      "variant": "fix",
+      "status": "done",
+      "artifacts": [],
+      "agent": "claude",
+      "model": null,
+      "started_at": "2026-07-15T15:58:47-04:00",
+      "attempts": [
+        {
+          "status": "done",
+          "agent": "claude",
+          "model": null,
+          "resumed": true,
+          "tokens": {
+            "input": 30,
+            "output": 17993,
+            "cache_read": 1659164,
+            "cache_creation": 95883
+          },
+          "cost_usd": 2.238387,
+          "duration_ms": 272893,
+          "num_turns": 16,
+          "started_at": "2026-07-15T15:58:47-04:00",
+          "ended_at": "2026-07-15T16:03:21-04:00",
+          "session_id": "d26178a1-9373-4ecc-aa1a-de9f98abd946"
+        }
+      ],
+      "tokens": {
+        "input": 30,
+        "output": 17993,
+        "cache_read": 1659164,
+        "cache_creation": 95883
+      },
+      "cost_usd": 2.238387,
+      "duration_ms": 272893,
+      "num_turns": 16,
+      "ended_at": "2026-07-15T16:03:21-04:00"
+    },
+    {
+      "name": "review",
+      "status": "done",
+      "artifacts": [
+        "review-2.diff",
+        "review.md",
+        "review-2.md"
+      ],
+      "agent": "codex",
+      "model": null,
+      "started_at": "2026-07-15T16:03:21-04:00",
+      "attempts": [
+        {
+          "status": "done",
+          "agent": "codex",
+          "model": null,
+          "resumed": false,
+          "tokens": {
+            "input": 331048,
+            "output": 4261,
+            "cache_read": 258304
+          },
+          "cost_usd": 0,
+          "duration_ms": 134650,
+          "num_turns": 1,
+          "started_at": "2026-07-15T16:03:21-04:00",
+          "ended_at": "2026-07-15T16:05:36-04:00",
+          "review": {
+            "verdict": "approve",
+            "must_fix": [],
+            "should_fix": [
+              {
+                "file": "harness/src/engine.ts",
+                "issue": "The safe-permissions fallback logs that the installed CLI “cannot resume,” although 0.144.1 can resume but cannot combine resume with the requested read-only sandbox. Use neutral wording and include a reason such as `sandbox_incompatible` in the event."
+              }
+            ],
+            "round": 2
+          }
+        }
+      ],
+      "tokens": {
+        "input": 331048,
+        "output": 4261,
+        "cache_read": 258304
+      },
+      "cost_usd": 0,
+      "duration_ms": 134650,
+      "num_turns": 1,
+      "ended_at": "2026-07-15T16:05:36-04:00"
+    },
+    {
+      "name": "verify",
+      "status": "done",
+      "attempts": [
+        {
+          "status": "done",
+          "agent": "harness",
+          "tokens": {
+            "input": 0,
+            "output": 0
+          },
+          "cost_usd": 0,
+          "num_turns": 0,
+          "started_at": "2026-07-15T16:05:36-04:00",
+          "duration_ms": 13060,
+          "ended_at": "2026-07-15T16:05:49-04:00"
+        }
+      ],
+      "artifacts": [
+        "evidence.md"
+      ],
+      "started_at": "2026-07-15T16:05:36-04:00",
+      "tokens": {
+        "input": 0,
+        "output": 0
+      },
+      "cost_usd": 0,
+      "duration_ms": 13060,
+      "num_turns": 0,
+      "ended_at": "2026-07-15T16:05:49-04:00"
+    }
+  ],
+  "builder_session_id": "d26178a1-9373-4ecc-aa1a-de9f98abd946"
+}

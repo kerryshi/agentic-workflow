@@ -7,13 +7,14 @@ plug in if it can produce the same durable records.
 
 Keep the reliability core and execution adapters separate:
 
-- **Agentic Workflow core** owns run/failure schemas, lifecycle scripts, evidence conventions,
-  metrics, and the shared permission policy.
+- **Agentic Workflow core** owns run/failure schemas, the lifecycle CLI (`harness <verb>`),
+  evidence conventions, metrics, and the shared permission policy.
 - **Adapters** own protocol and surface integration, model/session lifecycle, context acquisition,
   tool execution, and enforcement of approval boundaries.
 
-Adapters should call the core scripts or a future stable core API. They should not fork or
-reimplement the run/failure format. See `docs/architecture.md`.
+Adapters should call the core CLI (`harness new-run | update-run | complete-run | case`) or a
+future stable core API. They should not fork or reimplement the run/failure format. See
+`docs/architecture.md`.
 
 ## Required Run Fields
 
@@ -61,6 +62,11 @@ Each adapter should write or preserve the standard run folder:
 - `review.md`: independent review result and must-fix status.
 - `final.md`: ship report.
 - `diff.patch`: optional captured diff when safe.
+
+Harness-driven runs (v2.1+, schema_version 2) satisfy this shape natively with `pipeline.json`
+plus per-round `review-N.md`/`review-N.diff` alongside the latest `review.md`; `final.md` and a
+single `diff.patch` are optional there — the emitter (PRD §3.11) is authoritative. Manual runs
+created by `harness new-run` still carry the full artifact skeleton above.
 
 ## Approval Boundary
 

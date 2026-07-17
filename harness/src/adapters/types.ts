@@ -44,6 +44,14 @@ export interface StageResult {
   num_turns: number;
   /** Agent session identifier, when the CLI reports one (claude does). */
   session_id?: string;
+  /**
+   * Set by the codex adapter when opts.resumeSession was requested but could not
+   * be honored — the installed CLI lacks a `resume` subcommand, or resume is
+   * incompatible with the requested read-only sandbox (`codex exec resume` has
+   * no `--sandbox`). The drive ran a fresh context instead; the engine logs this
+   * to the run-event stream so the fallback is explicit, not silent.
+   */
+  resume_unsupported?: boolean;
   /** Raw stdout/stderr tail, preserved on failure for the run folder. */
   raw?: string;
   error?: string;

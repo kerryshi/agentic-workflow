@@ -1,0 +1,42 @@
+{
+  "run_id": "2026-07-15_1521_add-session-resume-to-the-harness-codex-adapter",
+  "created_at": "2026-07-15T15:21:41-04:00",
+  "completed_at": "2026-07-15T16:05:49-04:00",
+  "machine": "windows",
+  "repo": "C:/Users/PC/agentic-workflow",
+  "repo_name": "agentic-workflow",
+  "branch": "master",
+  "worktree": null,
+  "objective": "Add session resume to the harness codex adapter (harness/src/adapters/codex.ts): today a resumed run falls back to fresh contexts for codex-driven stages (PORTFOLIO 3.1 plan #6). Mirror the claude adapter's session-resume behavior where the codex CLI supports it (session id / exec resume); when it does not, keep the fresh-context fallback but record it explicitly in the stage log instead of silently. Validation: harness unit/integration suite stays green; new tests cover resume-with-session and the explicit-fallback path.",
+  "user_prompt_summary": "",
+  "status_path": "",
+  "risk_level": "medium",
+  "agent": {
+    "agent_id": "claude-code",
+    "agent_role": "executor",
+    "surface": "harness",
+    "model": null,
+    "adapter_version": "v2-harness"
+  },
+  "status": "complete",
+  "validation_plan": [
+    "npm --prefix harness run typecheck",
+    "npm --prefix harness test",
+    "npm --prefix harness test -- codex-driver",
+    "npm --prefix harness run test:all"
+  ],
+  "files_changed": [
+    "harness/src/adapters/types.ts",
+    "harness/src/adapters/codex.ts",
+    "harness/src/engine.ts",
+    "harness/tests/codex-driver.test.ts"
+  ],
+  "linked_failures": [
+    "CASE-0021"
+  ],
+  "evidence_links": [
+    "evidence.md"
+  ],
+  "reviewer_result": "review stage: see review.md",
+  "final_outcome": "pipeline feature completed (8 stages)"
+}

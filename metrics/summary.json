@@ -1,23 +1,24 @@
 {
-  "updated_at": "2026-07-13T15:45:18-04:00",
-  "runs_started": 16,
-  "runs_shipped": 16,
-  "failed_runs": 7,
-  "failures_total": 20,
+  "updated_at": "2026-07-16T21:23:13-04:00",
+  "runs_started": 26,
+  "runs_shipped": 24,
+  "failed_runs": 10,
+  "failures_total": 24,
   "failures_open": 0,
-  "failures_resolved": 20,
+  "failures_resolved": 24,
   "failures_wont_fix": 0,
-  "must_fix_failures": 16,
+  "must_fix_failures": 18,
   "escaped_bugs": 1,
-  "regressions_added": 20,
-  "validation_evidence_rate_percent": 93.8,
-  "average_minutes_start_to_ship": 64,
+  "regressions_added": 23,
+  "validation_evidence_rate_percent": 84.6,
+  "average_minutes_start_to_ship": 170.7,
   "failure_classes": {
-    "environment_platform_issue": 7,
+    "environment_platform_issue": 8,
     "syntax_type_error": 1,
-    "weak_verification": 2,
+    "weak_verification": 3,
     "tool_error": 8,
     "permission_issue": 1,
-    "regression_introduced": 1
+    "regression_introduced": 2,
+    "bad_context": 1
   }
 }

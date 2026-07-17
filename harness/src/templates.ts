@@ -25,7 +25,9 @@ export function classifyTask(task: string): TemplateName {
 
 /** Turn caps keep a wandering stage from burning the budget. */
 export const STAGE_MAX_TURNS: Record<StageName, number> = {
-  grill: 12,
+  // grill asks questions from the task text; 6 covers a couple of file peeks
+  // without funding a repo expedition (CASE-0021).
+  grill: 6,
   repro: 30,
   plan: 30,
   approval: 0,

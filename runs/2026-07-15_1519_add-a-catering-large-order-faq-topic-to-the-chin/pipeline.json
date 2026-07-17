@@ -1,0 +1,260 @@
+{
+  "schema_version": 2,
+  "review_round": 1,
+  "run_id": "2026-07-15_1519_add-a-catering-large-order-faq-topic-to-the-chin",
+  "template": "feature",
+  "repo": "C:\\Users\\PC\\china-garden",
+  "task": "Add a catering / large-order FAQ topic to the china-garden call agent. Callers ask 'do you do catering?' or 'can I place a big order for pickup?'. Follow the existing faq.py topic pattern (hours/address/phone/delivery/payment): answer from a new optional catering field in data/restaurant.json, with the standard safe fallback when the key is absent, and route detection through the same intent classification as the other FAQ topics in dialog.py. Do not touch the allergen handoff path or the ordering flow. Validation: full pytest suite stays green; new unit tests cover topic detection, the data-backed answer, and the absent-key fallback.",
+  "answers": "# Grill questions\n\nAnswer inline under each question, then resume the run.\n\n1. Should data/restaurant.json ship WITHOUT a catering value for now — so production callers get the safe fallback and the data-backed answer is proven only via a test fixture — rather than me inventing customer-facing catering policy wording (lead time / minimums / whether they even cater), which AGENTS.md treats as a family/escalation call?\n   A: No - ship WITH a confirmed catering value. Owner confirmed 2026-07-15: China Garden does NOT offer catering or large-order service. Store that as data in restaurant.json (a catering field whose confirmed value means 'none'), and have the agent politely decline, offer the regular menu, and offer a handoff to a person if the caller pushes. This is confirmed fact from the family, not a placeholder; do not invent lead times or minimums. Keep the safe fallback for repos/data files where the field is absent.\n",
+  "builder": "claude",
+  "reviewer": "codex",
+  "model": null,
+  "skip_permissions": true,
+  "isolated": true,
+  "agent_verify": false,
+  "risk_level": "medium",
+  "full_rereview": false,
+  "stage_budget_usd": null,
+  "current_stage": 6,
+  "validation_commands": [
+    ".venv/Scripts/python -m pytest -q",
+    ".venv/Scripts/ruff check --no-cache .",
+    "echo \"do you do catering?\" | .venv/Scripts/python -m china_garden.cli"
+  ],
+  "files_changed": [
+    "data/restaurant.json",
+    "src/china_garden/faq.py",
+    "src/china_garden/backends.py",
+    "tests/test_catering_faq.py"
+  ],
+  "fix_cycles": 0,
+  "last_must_fix": null,
+  "stages": [
+    {
+      "name": "grill",
+      "status": "done",
+      "attempts": [
+        {
+          "status": "parked",
+          "agent": "claude",
+          "model": null,
+          "resumed": false,
+          "tokens": {
+            "input": 6,
+            "output": 4097,
+            "cache_read": 79598,
+            "cache_creation": 19149
+          },
+          "cost_usd": 0.33533599999999997,
+          "duration_ms": 66804,
+          "num_turns": 5,
+          "started_at": "2026-07-15T15:19:17-04:00",
+          "ended_at": "2026-07-15T15:20:25-04:00",
+          "session_id": "f58d2029-6602-43bf-95a0-0af540e00673",
+          "park_reason": "awaiting grill answers"
+        }
+      ],
+      "artifacts": [
+        "questions.md"
+      ],
+      "agent": "claude",
+      "model": null,
+      "started_at": "2026-07-15T15:19:17-04:00",
+      "tokens": {
+        "input": 6,
+        "output": 4097,
+        "cache_read": 79598,
+        "cache_creation": 19149
+      },
+      "cost_usd": 0.33533599999999997,
+      "duration_ms": 66804,
+      "num_turns": 5,
+      "ended_at": "2026-07-15T15:48:16-04:00"
+    },
+    {
+      "name": "plan",
+      "status": "done",
+      "attempts": [
+        {
+          "status": "done",
+          "agent": "claude",
+          "model": null,
+          "resumed": true,
+          "tokens": {
+            "input": 5,
+            "output": 6227,
+            "cache_read": 111708,
+            "cache_creation": 30138
+          },
+          "cost_usd": 0.512934,
+          "duration_ms": 83853,
+          "num_turns": 6,
+          "started_at": "2026-07-15T15:48:16-04:00",
+          "ended_at": "2026-07-15T15:49:42-04:00",
+          "session_id": "f58d2029-6602-43bf-95a0-0af540e00673"
+        }
+      ],
+      "artifacts": [
+        "plan.md"
+      ],
+      "agent": "claude",
+      "model": null,
+      "started_at": "2026-07-15T15:48:16-04:00",
+      "tokens": {
+        "input": 5,
+        "output": 6227,
+        "cache_read": 111708,
+        "cache_creation": 30138
+      },
+      "cost_usd": 0.512934,
+      "duration_ms": 83853,
+      "num_turns": 6,
+      "ended_at": "2026-07-15T15:49:42-04:00"
+    },
+    {
+      "name": "approval",
+      "status": "done",
+      "attempts": [],
+      "artifacts": [],
+      "ended_at": "2026-07-15T15:51:10-04:00"
+    },
+    {
+      "name": "build",
+      "status": "done",
+      "attempts": [
+        {
+          "status": "done",
+          "agent": "claude",
+          "model": null,
+          "resumed": true,
+          "tokens": {
+            "input": 19,
+            "output": 3627,
+            "cache_read": 609052,
+            "cache_creation": 13681
+          },
+          "cost_usd": 0.532106,
+          "duration_ms": 63760,
+          "num_turns": 11,
+          "started_at": "2026-07-15T15:51:10-04:00",
+          "ended_at": "2026-07-15T15:52:15-04:00",
+          "session_id": "f58d2029-6602-43bf-95a0-0af540e00673"
+        }
+      ],
+      "artifacts": [],
+      "agent": "claude",
+      "model": null,
+      "started_at": "2026-07-15T15:51:10-04:00",
+      "tokens": {
+        "input": 19,
+        "output": 3627,
+        "cache_read": 609052,
+        "cache_creation": 13681
+      },
+      "cost_usd": 0.532106,
+      "duration_ms": 63760,
+      "num_turns": 11,
+      "ended_at": "2026-07-15T15:52:15-04:00"
+    },
+    {
+      "name": "review",
+      "status": "done",
+      "attempts": [
+        {
+          "status": "done",
+          "agent": "codex",
+          "model": null,
+          "resumed": false,
+          "tokens": {
+            "input": 131538,
+            "output": 3077,
+            "cache_read": 109312
+          },
+          "cost_usd": 0,
+          "duration_ms": 94837,
+          "num_turns": 1,
+          "started_at": "2026-07-15T15:52:15-04:00",
+          "ended_at": "2026-07-15T15:53:50-04:00",
+          "review": {
+            "verdict": "approve",
+            "must_fix": [],
+            "should_fix": [
+              {
+                "file": "src/china_garden/backends.py",
+                "issue": "Catering detection only matches singular forms such as \"large order\" and \"party tray\"; natural plural requests like \"do you take large orders?\" and \"do you have party trays?\" return unknown."
+              },
+              {
+                "file": "tests/test_catering_faq.py",
+                "issue": "The absent-key test replaces the loaded value with None, so it does not verify that Restaurant.load accepts JSON where the catering key is genuinely absent. An absent-key fixture would protect the optional-loading contract."
+              }
+            ],
+            "round": 1
+          }
+        }
+      ],
+      "artifacts": [
+        "review-1.diff",
+        "review.md",
+        "review-1.md"
+      ],
+      "agent": "codex",
+      "model": null,
+      "started_at": "2026-07-15T15:52:15-04:00",
+      "tokens": {
+        "input": 131538,
+        "output": 3077,
+        "cache_read": 109312
+      },
+      "cost_usd": 0,
+      "duration_ms": 94837,
+      "num_turns": 1,
+      "ended_at": "2026-07-15T15:53:50-04:00"
+    },
+    {
+      "name": "verify",
+      "status": "done",
+      "attempts": [
+        {
+          "status": "parked",
+          "agent": "harness",
+          "tokens": {
+            "input": 0,
+            "output": 0
+          },
+          "cost_usd": 0,
+          "num_turns": 0,
+          "started_at": "2026-07-15T15:53:50-04:00",
+          "duration_ms": 145,
+          "ended_at": "2026-07-15T15:53:50-04:00",
+          "park_reason": "verification failed"
+        },
+        {
+          "status": "done",
+          "agent": "harness",
+          "tokens": {
+            "input": 0,
+            "output": 0
+          },
+          "cost_usd": 0,
+          "num_turns": 0,
+          "started_at": "2026-07-15T15:54:54-04:00",
+          "duration_ms": 564,
+          "ended_at": "2026-07-15T15:54:54-04:00"
+        }
+      ],
+      "artifacts": [
+        "evidence.md"
+      ],
+      "started_at": "2026-07-15T15:54:54-04:00",
+      "tokens": {
+        "input": 0,
+        "output": 0
+      },
+      "cost_usd": 0,
+      "duration_ms": 564,
+      "num_turns": 0,
+      "ended_at": "2026-07-15T15:54:54-04:00"
+    }
+  ],
+  "builder_session_id": "f58d2029-6602-43bf-95a0-0af540e00673"
+}

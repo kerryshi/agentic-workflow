@@ -167,13 +167,14 @@ stage), `commands.jsonl` (one event per stage transition + agent invocation), an
 `run_started`/`run_completed` to `metrics/runs.jsonl` (v1 event names). Agent output tails pass a
 conservative secret scrub (`src/secrets.ts`, PRD FR7) before landing in committed records.
 `harness metrics` must parse harness-written records unchanged — enforced by
-`harness/tests/metrics-compat.test.ts`, which drives the real PS script over a harness-written
-run. The PS scripts remain the human/manual CLI; the harness does not shell out to them (keeps
-prompts out of PS 5.1 quoting entirely).
+`harness/tests/metrics-compat.test.ts`, which verifies the summary promise in Node on both
+platforms. (The PowerShell scripts that originally defined this promise were retired 2026-07-13
+after field-for-field parity was proven; `harness <verb>` is the only CLI.)
 
 ## Failure loop
 
 A `failed` stage or a serious reviewer finding routes to the existing `failures/CASE-####` flow.
-v1: the harness prints the exact `capture_failure.ps1` invocation into `PARKED.md` — on failed
-stages AND on must-fix review parks; auto-capture is a later step once the failure JSON writer is
-ported to TS.
+The harness prints the exact `harness case new --linked-run <run_id>` invocation into `PARKED.md`
+and review briefs — on failed stages AND on must-fix review parks. Auto-capture (the harness
+filing the case itself) is now possible — the case writer is ported (`src/cases.ts`) — but is not
+wired; filing remains a human/agent judgment call today.

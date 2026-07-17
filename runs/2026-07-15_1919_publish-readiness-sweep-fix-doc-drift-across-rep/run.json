@@ -1,0 +1,37 @@
+{
+  "run_id": "2026-07-15_1919_publish-readiness-sweep-fix-doc-drift-across-rep",
+  "created_at": "2026-07-15T19:19:44-04:00",
+  "completed_at": "2026-07-15T19:35:13-04:00",
+  "machine": "windows",
+  "repo": "C:/Users/PC/agentic-workflow",
+  "repo_name": "agentic-workflow",
+  "branch": "publish-readiness-sweep",
+  "worktree": null,
+  "objective": "publish-readiness sweep: fix doc drift across repo and global config, brain loop integrity (PRD docs/prd-publish-readiness.md WS1+WS3)",
+  "user_prompt_summary": "Kerry: okay create a prd and begin (after honest-verdict audit)",
+  "status_path": "",
+  "risk_level": "low",
+  "agent": {
+    "agent_id": "claude",
+    "agent_role": "executor",
+    "surface": "claude-code",
+    "model": null,
+    "adapter_version": "v1"
+  },
+  "status": "shipped",
+  "validation_plan": [
+    "cd harness && npm run test:all"
+  ],
+  "files_changed": [],
+  "linked_failures": [
+    "CASE-0023"
+  ],
+  "evidence_links": [
+    "reviewer verdict: clean, 3 NITs (all fixed same session)",
+    "harness suite 177/177 pre-merge + gate-run green; +1 render-label test = 178 on sweep-nit-fixes",
+    "fail-first proof: metrics.test.ts render test red under old label, green under new",
+    "merge commit on master: 'Merge publish-readiness-sweep' (gate refused nothing - it was green; gate refusal previously proven item M2)"
+  ],
+  "reviewer_result": "independent fresh-context reviewer on the full diff: CLEAN (0 must-fix / 0 should-fix / 3 nits, all fixed same session)",
+  "final_outcome": "WS1+WS3 of docs/prd-publish-readiness.md shipped: retired-PS instructions purged from 6 repo docs + template; HANDOFF self-contradiction fixed; thin STATUS.md added; metrics label honesty fix with render-layer regression test (proven failing-first); portable-review bundle re-synced; review/ship skills deduped; lab.md archive pointer fixed; watched-check theme promoted to global brief; /distill rewritten write-then-mark + link verification; CASE-0023 filed+resolved with honestly-empty regression_test"
+}

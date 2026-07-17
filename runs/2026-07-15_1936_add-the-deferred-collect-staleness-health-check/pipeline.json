@@ -1,0 +1,442 @@
+{
+  "schema_version": 2,
+  "review_round": 5,
+  "run_id": "2026-07-15_1936_add-the-deferred-collect-staleness-health-check",
+  "template": "feature",
+  "repo": "C:\\Users\\PC\\Desktop\\Sandbox Testing\\ai news spider",
+  "task": "Add the deferred collect-staleness health check to the ai-news-spider VS Code digest surface: warn visibly when the last successful collect is older than 25 minutes, because the 2026-07-05 Jetson ICS outage proved silent staleness is this system's real failure mode; read STATUS.md and existing digest code first, follow the repo's existing conventions and test style, and do not touch the Jetson deploy path (blocked on JETSON_HOST, a Kerry-only env var).",
+  "answers": "# Grill questions\n\nAnswer inline under each question, then resume the run.\n\n1. Source of truth: the extension's top --json output carries no last-collect timestamp today — where should the staleness check read the last *successful* collect time from (a new/existing engine field or status subcommand, collect.log mtime over SSH, etc.), and if it needs a new engine field, is landing the extension side against a not-yet-deployed engine field acceptable given the Jetson deploy is out of scope?\n   A: New engine field. Engine writes a last-successful-collect timestamp into its JSON output; the extension reads it. Landing the extension against the not-yet-deployed engine field is acceptable — the Jetson deploy is separately blocked (JETSON_HOST), and the warning simply activates once deployed. Do NOT use SSH-based log mtime (SSH to the Jetson is currently broken). [Kerry, 2026-07-16]\n\n2. Command vs passive: STATUS calls this a 'health-check command' but the task says 'warn visibly' — do you want a passive warning on every showTop/refresh, a separate invokable aiSignal.healthCheck command, or both?\n   A: Passive warning on every showTop/refresh only. No separate command. [Kerry, 2026-07-16]\n\n3. Which visible surface should carry the warning: the status-bar badge switching to a warning state, a banner prepended to the digest markdown/tooltip, and/or a warning toast?\n   A: Status-bar badge switches to a warning state AND a banner is prepended to the digest markdown. No toast. [Kerry, 2026-07-16]\n\n4. When the last-collect time is unknown or the Jetson is unreachable (SSH fails), should that be treated as stale and warn, or stay silent?\n   A: Treat as stale and warn. Unknown health = assume unhealthy; silent degradation is the failure mode this check exists to catch. [Kerry, 2026-07-16]\n\n5. Test style: the repo's tests are all Python/pytest with no TS test harness — should the staleness comparison live in the engine (Python) so it's pytest-covered, or is an untested extension-only TypeScript change acceptable?\n   A: Staleness comparison lives in the engine (Python) with pytest coverage; the extension only renders the engine's verdict. Every change ships with a test. [Kerry, 2026-07-16]\n",
+  "builder": "claude",
+  "reviewer": "codex",
+  "model": null,
+  "skip_permissions": true,
+  "isolated": true,
+  "agent_verify": false,
+  "risk_level": "low",
+  "full_rereview": false,
+  "stage_budget_usd": null,
+  "current_stage": 8,
+  "validation_commands": [
+    ".venv/Scripts/python -m pytest tests/test_collect_health.py tests/test_markdown_digest.py tests/test_html_digest.py tests/test_store.py -q",
+    ".venv/Scripts/python -m pytest -q",
+    ".venv/Scripts/python -c \"from datetime import datetime, timedelta, timezone; from engine.digest import collect_health, render_markdown, STALE_AFTER_MINUTES; now = datetime(2026, 7, 16, 12, 0, tzinfo=timezone.utc); stale = collect_health((now - timedelta(hours=74.5)).isoformat(), now=now); fresh = collect_health((now - timedelta(minutes=5)).isoformat(), now=now); unknown = collect_health(None, now=now); assert stale['stale'] and unknown['stale'] and not fresh['stale']; assert STALE_AFTER_MINUTES == 25; empty = render_markdown([], health=stale); assert 'Collection may have stopped' in empty, 'stale banner missing from EMPTY digest (the 2026-07-05 outage shape)'; assert 'Collection may have stopped' not in render_markdown([], health=fresh); assert 'Collection may have stopped' not in render_markdown([]); print('OK: stale banner renders on empty digest; fresh/None stay silent')\"",
+    "cd extension && npm run compile",
+    "grep -q 'statusBarItem.warningBackground' extension/out/extension.js && echo 'OK: out/extension.js regenerated with the warning badge state'"
+  ],
+  "files_changed": [
+    "engine/digest.py",
+    "engine/cli.py",
+    "tests/test_collect_health.py",
+    "extension/src/extension.ts",
+    "STATUS.md"
+  ],
+  "fix_cycles": 1,
+  "last_must_fix": "- extension/src/extension.ts: `collectNow()` calls `idleStatus()` when collection/SSH fails. Because `idleStatus()` now clears `statusItem.backgroundColor`, a previously established stale warning is erased and remains silently neutral until another refresh. Failed collection must preserve or set the unhealthy badge.\n- extension/src/extension.ts: Unknown-health paths do not add the required banner to the digest. SSH/nonzero and parse failures leave the cached markdown unchanged, while valid output from an older engine is written unchanged without a banner. These cases show only the badge, contrary to the requirement that unknown/unreachable health warn on both the status bar and digest markdown.",
+  "stages": [
+    {
+      "name": "grill",
+      "status": "done",
+      "attempts": [
+        {
+          "status": "parked",
+          "agent": "claude",
+          "model": null,
+          "resumed": false,
+          "tokens": {
+            "input": 10,
+            "output": 4397,
+            "cache_read": 143856,
+            "cache_creation": 18173
+          },
+          "cost_usd": 0.364718,
+          "duration_ms": 68570,
+          "num_turns": 6,
+          "started_at": "2026-07-15T19:36:39-04:00",
+          "ended_at": "2026-07-15T19:37:49-04:00",
+          "session_id": "fd4e5727-cc7b-48a4-9f4e-b1e6aa0f8e25",
+          "park_reason": "awaiting grill answers"
+        }
+      ],
+      "artifacts": [
+        "questions.md"
+      ],
+      "agent": "claude",
+      "model": null,
+      "started_at": "2026-07-15T19:36:39-04:00",
+      "tokens": {
+        "input": 10,
+        "output": 4397,
+        "cache_read": 143856,
+        "cache_creation": 18173
+      },
+      "cost_usd": 0.364718,
+      "duration_ms": 68570,
+      "num_turns": 6,
+      "ended_at": "2026-07-16T20:30:57-04:00"
+    },
+    {
+      "name": "plan",
+      "status": "done",
+      "attempts": [
+        {
+          "status": "done",
+          "agent": "claude",
+          "model": null,
+          "resumed": true,
+          "tokens": {
+            "input": 30,
+            "output": 13032,
+            "cache_read": 894057,
+            "cache_creation": 48297
+          },
+          "cost_usd": 1.2559485000000001,
+          "duration_ms": 306340,
+          "num_turns": 19,
+          "started_at": "2026-07-16T20:30:57-04:00",
+          "ended_at": "2026-07-16T20:36:06-04:00",
+          "session_id": "fd4e5727-cc7b-48a4-9f4e-b1e6aa0f8e25"
+        }
+      ],
+      "artifacts": [
+        "plan.md"
+      ],
+      "agent": "claude",
+      "model": null,
+      "started_at": "2026-07-16T20:30:57-04:00",
+      "tokens": {
+        "input": 30,
+        "output": 13032,
+        "cache_read": 894057,
+        "cache_creation": 48297
+      },
+      "cost_usd": 1.2559485000000001,
+      "duration_ms": 306340,
+      "num_turns": 19,
+      "ended_at": "2026-07-16T20:36:06-04:00"
+    },
+    {
+      "name": "approval",
+      "status": "done",
+      "attempts": [],
+      "artifacts": [],
+      "ended_at": "2026-07-16T20:37:11-04:00"
+    },
+    {
+      "name": "build",
+      "status": "done",
+      "attempts": [
+        {
+          "status": "done",
+          "agent": "claude",
+          "model": null,
+          "resumed": true,
+          "tokens": {
+            "input": 63,
+            "output": 18695,
+            "cache_read": 3092035,
+            "cache_creation": 35486
+          },
+          "cost_usd": 2.3685675,
+          "duration_ms": 261008,
+          "num_turns": 34,
+          "started_at": "2026-07-16T20:37:11-04:00",
+          "ended_at": "2026-07-16T20:41:34-04:00",
+          "session_id": "fd4e5727-cc7b-48a4-9f4e-b1e6aa0f8e25"
+        }
+      ],
+      "artifacts": [],
+      "agent": "claude",
+      "model": null,
+      "started_at": "2026-07-16T20:37:11-04:00",
+      "tokens": {
+        "input": 63,
+        "output": 18695,
+        "cache_read": 3092035,
+        "cache_creation": 35486
+      },
+      "cost_usd": 2.3685675,
+      "duration_ms": 261008,
+      "num_turns": 34,
+      "ended_at": "2026-07-16T20:41:34-04:00"
+    },
+    {
+      "name": "review",
+      "status": "done",
+      "attempts": [
+        {
+          "status": "done",
+          "agent": "codex",
+          "model": null,
+          "resumed": false,
+          "tokens": {
+            "input": 722184,
+            "output": 8476,
+            "cache_read": 656128
+          },
+          "cost_usd": 0,
+          "duration_ms": 304161,
+          "num_turns": 1,
+          "started_at": "2026-07-16T20:41:34-04:00",
+          "ended_at": "2026-07-16T20:46:38-04:00",
+          "session_id": "019f6d85-8a57-7053-9be0-59eddc29d080",
+          "review": {
+            "verdict": "must_fix",
+            "must_fix": [
+              {
+                "file": "extension/src/extension.ts",
+                "issue": "`collectNow()` calls `idleStatus()` when collection/SSH fails. Because `idleStatus()` now clears `statusItem.backgroundColor`, a previously established stale warning is erased and remains silently neutral until another refresh. Failed collection must preserve or set the unhealthy badge."
+              },
+              {
+                "file": "extension/src/extension.ts",
+                "issue": "Unknown-health paths do not add the required banner to the digest. SSH/nonzero and parse failures leave the cached markdown unchanged, while valid output from an older engine is written unchanged without a banner. These cases show only the badge, contrary to the requirement that unknown/unreachable health warn on both the status bar and digest markdown."
+              }
+            ],
+            "should_fix": [
+              {
+                "file": "engine/cli.py",
+                "issue": "The `status` command still crashes on naive or malformed `last_collect` values because `_ago()` parses and subtracts the raw timestamp independently. This defeats `collect_health()`'s defensive unknown/naive handling for that surface."
+              }
+            ],
+            "round": 1
+          }
+        }
+      ],
+      "artifacts": [
+        "review-1.diff",
+        "review.md",
+        "review-1.md"
+      ],
+      "agent": "codex",
+      "model": null,
+      "started_at": "2026-07-16T20:41:34-04:00",
+      "tokens": {
+        "input": 722184,
+        "output": 8476,
+        "cache_read": 656128
+      },
+      "cost_usd": 0,
+      "duration_ms": 304161,
+      "num_turns": 1,
+      "ended_at": "2026-07-16T20:46:38-04:00"
+    },
+    {
+      "name": "build",
+      "variant": "fix",
+      "status": "done",
+      "artifacts": [],
+      "agent": "claude",
+      "model": null,
+      "started_at": "2026-07-16T20:46:38-04:00",
+      "attempts": [
+        {
+          "status": "done",
+          "agent": "claude",
+          "model": null,
+          "resumed": true,
+          "tokens": {
+            "input": 52,
+            "output": 21578,
+            "cache_read": 3422720,
+            "cache_creation": 116351
+          },
+          "cost_usd": 3.41458,
+          "duration_ms": 335966,
+          "num_turns": 28,
+          "started_at": "2026-07-16T20:46:38-04:00",
+          "ended_at": "2026-07-16T20:52:16-04:00",
+          "session_id": "fd4e5727-cc7b-48a4-9f4e-b1e6aa0f8e25"
+        }
+      ],
+      "tokens": {
+        "input": 52,
+        "output": 21578,
+        "cache_read": 3422720,
+        "cache_creation": 116351
+      },
+      "cost_usd": 3.41458,
+      "duration_ms": 335966,
+      "num_turns": 28,
+      "ended_at": "2026-07-16T20:52:16-04:00"
+    },
+    {
+      "name": "review",
+      "status": "done",
+      "artifacts": [
+        "review-2.diff",
+        "review.md",
+        "review-2.md",
+        "review-3.diff",
+        "review-3.md",
+        "review-4.diff",
+        "review-4.md",
+        "review-5.diff",
+        "review-5.md"
+      ],
+      "agent": "codex",
+      "model": null,
+      "started_at": "2026-07-16T21:17:21-04:00",
+      "attempts": [
+        {
+          "status": "parked",
+          "agent": "codex",
+          "model": null,
+          "resumed": false,
+          "tokens": {
+            "input": 833734,
+            "output": 12263,
+            "cache_read": 766208
+          },
+          "cost_usd": 0,
+          "duration_ms": 386430,
+          "num_turns": 1,
+          "started_at": "2026-07-16T20:52:16-04:00",
+          "ended_at": "2026-07-16T20:58:42-04:00",
+          "session_id": "019f6d8f-504e-7d62-9dc9-e53743c39269",
+          "review": {
+            "verdict": "must_fix",
+            "must_fix": [
+              {
+                "file": "extension/src/extension.ts:114",
+                "issue": "`withStaleBanner()` uses `md.includes(STALE_MARKER)` with the generic text “Collection may have stopped.” Scraped titles or summaries containing that phrase are mistaken for an existing banner. I reproduced this with compiled extension code and an older-engine response lacking `health`: the badge warned, but the digest remained unbannered. Detect the exact banner structure or use a collision-resistant sentinel, and add a regression test."
+              }
+            ],
+            "should_fix": [],
+            "round": 2
+          },
+          "park_reason": "must-fix findings remain after one fix cycle"
+        },
+        {
+          "status": "parked",
+          "agent": "codex",
+          "model": null,
+          "resumed": false,
+          "tokens": {
+            "input": 266952,
+            "output": 4245,
+            "cache_read": 216576
+          },
+          "cost_usd": 0,
+          "duration_ms": 110688,
+          "num_turns": 1,
+          "started_at": "2026-07-16T20:59:17-04:00",
+          "ended_at": "2026-07-16T21:01:07-04:00",
+          "session_id": "019f6d95-bb8e-7022-93c3-265ab8931cb0",
+          "review": {
+            "verdict": "must_fix",
+            "must_fix": [
+              {
+                "file": "extension/src/extension.ts:114",
+                "issue": "Prior finding is unresolved. `md.includes(STALE_MARKER)` still mistakes scraped content containing “Collection may have stopped” for an existing banner. Direct execution of the freshly compiled extension reproduced `banner_present=false` and `output_unchanged=true` for an older-engine digest containing that phrase in a title. Detect the exact banner structure or use a collision-resistant sentinel."
+              },
+              {
+                "file": "tests/test_collect_health.py",
+                "issue": "The required collision regression test is still missing. Add a test proving an older-engine digest with the marker phrase in a scraped title or summary still receives the stale banner, while an actual existing banner remains idempotent."
+              }
+            ],
+            "should_fix": [],
+            "round": 3
+          },
+          "park_reason": "must-fix findings remain after one fix cycle"
+        },
+        {
+          "status": "parked",
+          "agent": "codex",
+          "model": null,
+          "resumed": false,
+          "tokens": {
+            "input": 401658,
+            "output": 6991,
+            "cache_read": 353024
+          },
+          "cost_usd": 0,
+          "duration_ms": 185740,
+          "num_turns": 1,
+          "started_at": "2026-07-16T21:12:11-04:00",
+          "ended_at": "2026-07-16T21:15:17-04:00",
+          "session_id": "019f6da1-8e04-7dd2-a91c-98e4c8954c32",
+          "review": {
+            "verdict": "must_fix",
+            "must_fix": [
+              {
+                "file": "tests/test_collect_health.py",
+                "issue": "Lines 216-222 require gitignored extension/out/extension.js. CI runs pytest in a separate clean-checkout job that never compiles or receives this artifact, so python -m pytest fails before exercising the regression. Reproduced by removing the compiled artifact temporarily. Run this behavioral test in the extension job after compilation, or otherwise make its dependency available in the pytest job."
+              }
+            ],
+            "should_fix": [
+              {
+                "file": "STATUS.md",
+                "issue": "It reports 17 collect-health tests, but tests/test_collect_health.py now contains 19."
+              }
+            ],
+            "round": 4
+          },
+          "park_reason": "must-fix findings remain after one fix cycle"
+        },
+        {
+          "status": "done",
+          "agent": "codex",
+          "model": null,
+          "resumed": false,
+          "tokens": {
+            "input": 647952,
+            "output": 5813,
+            "cache_read": 600576
+          },
+          "cost_usd": 0,
+          "duration_ms": 236220,
+          "num_turns": 1,
+          "started_at": "2026-07-16T21:17:21-04:00",
+          "ended_at": "2026-07-16T21:21:17-04:00",
+          "session_id": "019f6da6-45f7-7962-ad56-f3d1812ebdb5",
+          "review": {
+            "verdict": "approve",
+            "must_fix": [],
+            "should_fix": [],
+            "round": 5
+          }
+        }
+      ],
+      "tokens": {
+        "input": 647952,
+        "output": 5813,
+        "cache_read": 600576
+      },
+      "cost_usd": 0,
+      "duration_ms": 236220,
+      "num_turns": 1,
+      "ended_at": "2026-07-16T21:21:17-04:00"
+    },
+    {
+      "name": "verify",
+      "status": "done",
+      "attempts": [
+        {
+          "status": "done",
+          "agent": "harness",
+          "tokens": {
+            "input": 0,
+            "output": 0
+          },
+          "cost_usd": 0,
+          "num_turns": 0,
+          "started_at": "2026-07-16T21:21:17-04:00",
+          "duration_ms": 71706,
+          "ended_at": "2026-07-16T21:22:29-04:00"
+        }
+      ],
+      "artifacts": [
+        "evidence.md"
+      ],
+      "started_at": "2026-07-16T21:21:17-04:00",
+      "tokens": {
+        "input": 0,
+        "output": 0
+      },
+      "cost_usd": 0,
+      "duration_ms": 71706,
+      "num_turns": 0,
+      "ended_at": "2026-07-16T21:22:29-04:00"
+    }
+  ],
+  "builder_session_id": "fd4e5727-cc7b-48a4-9f4e-b1e6aa0f8e25"
+}

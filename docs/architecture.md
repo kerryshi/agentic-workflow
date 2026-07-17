@@ -61,12 +61,12 @@ Every adapter maps its native events onto the same lifecycle:
 Adapters call the core entry points rather than writing JSON/Markdown formats independently:
 
 ```text
-new_run.ps1 -> update_run.ps1 -> complete_run.ps1
-                    |                  |
-                    +-> capture_failure.ps1 -> resolve_failure.ps1
+harness new-run -> harness update-run -> harness complete-run
+                        |                     |
+                        +-> harness case new -> harness case resolve
 ```
 
-A future library or MCP wrapper may replace direct PowerShell invocation, but it must preserve the
+A future library or MCP wrapper may replace direct CLI invocation, but it must preserve the
 same contract and backward-readable artifacts.
 
 ## Contract Rules

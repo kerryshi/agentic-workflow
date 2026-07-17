@@ -73,6 +73,11 @@ describe('parseCodexEvents', () => {
     expect(p.events).toBe(0);
     expect(p.resultText).toBeUndefined();
   });
+
+  it('captures the thread_id from thread.started as the session id', () => {
+    const p = parseCodexEvents(HAPPY);
+    expect(p.sessionId).toBe('019f50c1-9ad7-7d90-8e52-9a06c29d2608');
+  });
 });
 
 describe('buildExecArgs', () => {
@@ -98,6 +103,27 @@ describe('buildExecArgs', () => {
     expect(args).not.toContain('--dangerously-bypass-approvals-and-sandbox');
     expect(args[args.indexOf('--sandbox') + 1]).toBe('read-only');
   });
+
+  it('resume id turns the invocation into `exec resume <id>` with stdin last', () => {
+    const args = buildExecArgs({}, 'sess-123');
+    expect(args.slice(0, 5)).toEqual([
+      'exec',
+      'resume',
+      'sess-123',
+      '--json',
+      '--skip-git-repo-check',
+    ]);
+    expect(args).toContain('--dangerously-bypass-approvals-and-sandbox');
+    expect(args[args.length - 1]).toBe('-');
+  });
+
+  it('resume never emits --sandbox even under safe-perms (codex resume rejects it)', () => {
+    // `codex exec resume` has no --sandbox flag; emitting it exits 2. The read-only
+    // guardrail is fresh-path only — run() falls back rather than build this.
+    const args = buildExecArgs({ skipPermissions: false }, 'sess-123');
+    expect(args).not.toContain('--sandbox');
+    expect(args.slice(0, 3)).toEqual(['exec', 'resume', 'sess-123']);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -109,13 +135,29 @@ describe('buildExecArgs', () => {
 const STUB = `
 const mode = process.env['CODEX_STUB_MODE'] ?? 'happy';
 if (process.argv.includes('login')) process.exit(mode === 'logged-out' ? 1 : 0);
+if (process.argv.includes('--help')) {
+  // emulate 'codex exec --help'; the resume subcommand line is present unless disabled
+  console.log('Usage: codex exec [OPTIONS] [PROMPT]');
+  console.log('Commands:');
+  if (process.env['CODEX_STUB_RESUME'] !== 'no') console.log('  resume  Resume a previous session by id');
+  console.log('  help    Print this message');
+  process.exit(0);
+}
+const resumeIdx = process.argv.indexOf('resume');
+const resumedId = resumeIdx >= 0 ? process.argv[resumeIdx + 1] : null;
+// mirror codex-cli 0.144.1: 'exec resume' has no --sandbox flag and clap exits 2
+if (resumeIdx >= 0 && process.argv.includes('--sandbox')) {
+  console.error("error: unexpected argument '--sandbox' found");
+  process.exit(2);
+}
 let stdin = '';
 process.stdin.on('data', (d) => (stdin += d));
 process.stdin.on('end', () => {
   if (mode === 'happy') {
     console.log(JSON.stringify({ type: 'thread.started', thread_id: 't1' }));
     console.log(JSON.stringify({ type: 'turn.started' }));
-    console.log(JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: '{"echo":' + JSON.stringify(stdin.length) + '}' } }));
+    const text = resumedId ? JSON.stringify({ resumed: resumedId }) : '{"echo":' + JSON.stringify(stdin.length) + '}';
+    console.log(JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text } }));
     console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 11, cached_input_tokens: 5, output_tokens: 7 } }));
   } else if (mode === 'noise') {
     console.log('plain banner, no events');
@@ -141,6 +183,7 @@ describe('CodexDriver via HARNESS_CODEX_BIN stub', () => {
   afterEach(() => {
     delete process.env['HARNESS_CODEX_BIN'];
     delete process.env['CODEX_STUB_MODE'];
+    delete process.env['CODEX_STUB_RESUME'];
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -153,6 +196,40 @@ describe('CodexDriver via HARNESS_CODEX_BIN stub', () => {
     expect(res.tokens).toEqual({ input: 11, output: 7, cache_read: 5 });
     expect(res.num_turns).toBe(1);
     expect(res.duration_ms).toBeGreaterThan(0);
+  });
+
+  it('resume-with-session: CLI supports resume → drives `exec resume <id>`, emits session_id', async () => {
+    const res = await new CodexDriver().run(brief, { timeoutMs: 30_000, resumeSession: 'sess-123' });
+    expect(res.ok).toBe(true);
+    expect(res.session_id).toBe('t1'); // thread_id from thread.started
+    expect(res.resume_unsupported).toBeFalsy();
+    // the stub echoes back the id it was resumed with, proving the resume path ran
+    expect(res.parsed).toEqual({ resumed: 'sess-123' });
+  });
+
+  it('safe-perms resume: CLI cannot resume under read-only sandbox → fresh fallback, not a --sandbox crash', async () => {
+    // The stub rejects `resume` + `--sandbox` (like real codex). run() must NOT
+    // build that combination: it falls back to a fresh read-only context instead.
+    const res = await new CodexDriver().run(brief, {
+      timeoutMs: 30_000,
+      resumeSession: 'sess-123',
+      skipPermissions: false,
+    });
+    expect(res.ok).toBe(true);
+    expect(res.error).toBeUndefined(); // NOT "codex exited 2: unexpected argument '--sandbox'"
+    expect(res.resume_unsupported).toBe(true);
+    expect(res.session_id).toBe('t1');
+    expect(res.parsed).toEqual({ echo: brief.prompt.length }); // fresh drive, not the resumed-id shape
+  });
+
+  it('explicit-fallback: CLI lacks resume → fresh context, resume_unsupported flag set, session_id still emitted', async () => {
+    process.env['CODEX_STUB_RESUME'] = 'no';
+    const res = await new CodexDriver().run(brief, { timeoutMs: 30_000, resumeSession: 'sess-123' });
+    expect(res.ok).toBe(true);
+    expect(res.resume_unsupported).toBe(true);
+    expect(res.session_id).toBe('t1');
+    // fresh drive: prompt echoed, NOT the resumed-id shape
+    expect(res.parsed).toEqual({ echo: brief.prompt.length });
   });
 
   it('exit 0 + non-JSONL stdout: ok:false, raw tail kept, duration still real', async () => {

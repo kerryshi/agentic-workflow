@@ -67,11 +67,16 @@ function contract(schema: string): string {
 export function buildBrief(stage: StageName, ctx: BriefContext): string {
   switch (stage) {
     case 'grill':
+      // No open-ended repo exploration: a large repo ate the whole turn cap and
+      // produced zero questions (CASE-0021). Ask, don't read.
       return [
         header(stage, ctx),
         `Assess whether this task is specified well enough to plan and build without guessing`,
-        `product intent. Skim the repository briefly if that helps. DO NOT edit any files and`,
-        `DO NOT start planning the implementation.`,
+        `product intent. Work from the task text — ASK, DON'T EXPLORE: you have a hard turn`,
+        `cap and repositories can be arbitrarily large, so spend at most 2 quick file peeks`,
+        `confirming that things the task names exist. If you would need to read code to`,
+        `answer a question yourself, that is a question to return, not research to do.`,
+        `DO NOT edit any files and DO NOT start planning the implementation.`,
         `If the task leaves real room for misalignment (scope, user-visible behavior, edge`,
         `cases, "done" criteria), produce at most 5 pointed questions whose answers would`,
         `change the plan. If it is clear enough, say so.`,
@@ -99,6 +104,14 @@ export function buildBrief(stage: StageName, ctx: BriefContext): string {
         `DO NOT edit any files. The plan must cover: goal, ordered steps, files to touch,`,
         `exact validation commands that will prove it works, and risks. Follow the repo's`,
         `existing conventions.`,
+        ``,
+        // Commands execute under bash even on Windows; backslash paths die there (CASE-0022).
+        `VALIDATION COMMAND RULES — the harness runs them with non-interactive \`bash -c\``,
+        `from the repo root on EVERY platform (Git Bash on Windows):`,
+        `- forward-slash paths only (.venv/Scripts/python, never .venv\\Scripts\\python —`,
+        `  bash strips bare backslashes);`,
+        `- pipe stdin explicitly (echo 'text' | cmd, never a bare "text" | cmd);`,
+        `- every command must run unattended and exit non-zero on failure.`,
         ``,
         contract(
           `{"plan_markdown": "the full plan as markdown",` +

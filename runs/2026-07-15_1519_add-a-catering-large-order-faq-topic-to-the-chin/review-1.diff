@@ -1,0 +1,123 @@
+diff --git a/data/restaurant.json b/data/restaurant.json
+index 3efe84e..b7633f6 100644
+--- a/data/restaurant.json
++++ b/data/restaurant.json
+@@ -18,5 +18,6 @@
+   "payment_policy": "You pay at pickup - we take cash and cards at the counter. For your security we never take card numbers over this automated line.",
+   "delivery_policy": "We don't deliver ourselves - you can order delivery through DoorDash or Grubhub. Pickup orders are welcome on this line.",
+   "allergen_policy": "For any allergy or ingredient-safety question I need to hand you to a person - your safety matters too much for me to guess.",
++  "catering": "We don't offer catering or large-party orders - but I'm glad to take a regular pickup order for you, or say 'person' if you'd like to talk to someone about it.",
+   "ai_disclosure": "Thanks for calling China Garden! I'm an automated assistant - I can answer questions and take your pickup order, or say 'person' anytime to talk to a human."
+ }
+diff --git a/src/china_garden/backends.py b/src/china_garden/backends.py
+index 72f849b..5745ed9 100644
+--- a/src/china_garden/backends.py
++++ b/src/china_garden/backends.py
+@@ -22,7 +22,7 @@ KINDS = (
+     "add_item", "remove_item", "set_qty", "done_ordering", "confirm", "deny",
+     "faq", "item_price", "allergen", "request_human", "goodbye", "unknown",
+ )
+-FAQ_TOPICS = ("hours", "address", "phone", "delivery", "payment")
++FAQ_TOPICS = ("hours", "address", "phone", "delivery", "payment", "catering")
+ 
+ _NUMBER_WORDS = {
+     "a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+@@ -171,6 +171,8 @@ class RuleBackend:
+ 
+     def _match_faq(self, text: str) -> Intent | None:
+         for topic, pattern in (
++            ("catering", r"\b(cater\w*|large order|big order|bulk order|"
++                         r"party (tray|order|platter)|feed a (crowd|party))\b"),
+             ("hours", r"\b(hours?|open|close|closing|opening)\b"),
+             ("delivery", r"\bdeliver\w*|door ?dash|grub ?hub\b"),
+             ("payment", r"\b(pay|payment|card|credit|cash|apple pay|visa|"
+diff --git a/src/china_garden/faq.py b/src/china_garden/faq.py
+index 6999ab5..4394e6a 100644
+--- a/src/china_garden/faq.py
++++ b/src/china_garden/faq.py
+@@ -25,6 +25,7 @@ class Restaurant:
+     delivery_policy: str
+     allergen_policy: str
+     ai_disclosure: str
++    catering: str | None = None
+ 
+     @classmethod
+     def load(cls, path: Path | None = None) -> Restaurant:
+@@ -41,6 +42,7 @@ class Restaurant:
+             delivery_policy=raw["delivery_policy"],
+             allergen_policy=raw["allergen_policy"],
+             ai_disclosure=raw["ai_disclosure"],
++            catering=raw.get("catering"),
+         )
+ 
+ 
+@@ -57,4 +59,6 @@ def answer(topic: str, r: Restaurant) -> str:
+         return r.delivery_policy
+     if topic == "payment":
+         return r.payment_policy
++    if topic == "catering" and r.catering:
++        return r.catering
+     return "I'm not sure about that one - say 'person' and I'll get someone who knows."
+diff --git a/tests/test_catering_faq.py b/tests/test_catering_faq.py
+new file mode 100644
+index 0000000..ec00ed2
+--- /dev/null
++++ b/tests/test_catering_faq.py
+@@ -0,0 +1,57 @@
++"""Catering FAQ topic: 'do you do catering?' / 'big order for pickup' route
++through the same FAQ intent path as hours/delivery. The answer is data-backed
++from restaurant.json's optional `catering` field; owner confirmed (2026-07-15)
++China Garden does NOT cater, so the value politely declines and points to the
++person-handoff. When the key is absent, callers get the standard safe fallback."""
++
++import dataclasses
++
++import pytest
++
++from china_garden import faq
++from china_garden.backends import Context, RuleBackend
++
++
++@pytest.fixture
++def backend(menu):
++    return RuleBackend(menu)
++
++
++# --- backend: topic detection ------------------------------------------------
++
++def test_do_you_do_catering_detected(backend):
++    intent = backend.parse("do you do catering?", Context())[0]
++    assert intent.kind == "faq"
++    assert intent.topic == "catering"
++
++
++def test_big_order_for_pickup_detected(backend):
++    intent = backend.parse("can I place a big order for pickup", Context())[0]
++    assert intent.kind == "faq"
++    assert intent.topic == "catering"
++
++
++# --- faq.answer: data-backed answer + absent-key fallback --------------------
++
++def test_data_backed_catering_answer(restaurant):
++    text = faq.answer("catering", restaurant)
++    assert "cater" in text.lower()
++    # the confirmed decline comes from data, not the generic fallback
++    assert "not sure about that one" not in text
++
++
++def test_absent_key_falls_back_safely(restaurant):
++    r = dataclasses.replace(restaurant, catering=None)
++    text = faq.answer("catering", r)
++    assert "person" in text
++
++
++# --- dialog: reply text, order untouched, no handoff -------------------------
++
++def test_dialog_catering_declines_without_touching_order(session):
++    reply = session.handle("do you do catering?")
++    assert "cater" in reply.text.lower()
++    assert session.order.lines == []
++    # FAQ answer must not trip the allergen/handoff path or advance ordering
++    assert reply.state == "OPEN"
++    assert reply.done is False

@@ -1,0 +1,28 @@
+{
+  "run_id": "2026-07-11_1243_plan",
+  "created_at": "2026-07-11T12:43:00-04:00",
+  "completed_at": "2026-07-13T15:41:02-04:00",
+  "machine": "windows",
+  "repo": "C:/Users/PC/Desktop/NCCMarket",
+  "repo_name": "NCCMarket",
+  "branch": "",
+  "worktree": null,
+  "objective": "/plan",
+  "user_prompt_summary": "",
+  "status_path": "",
+  "risk_level": "medium",
+  "agent": {
+    "agent_id": "claude-code",
+    "agent_role": "executor",
+    "surface": "harness",
+    "model": null,
+    "adapter_version": "v2-harness"
+  },
+  "status": "abandoned",
+  "validation_plan": [],
+  "files_changed": [],
+  "linked_failures": [],
+  "evidence_links": [],
+  "reviewer_result": null,
+  "final_outcome": "Abandoned. A duplicate grill park from the 2026-07-11 harness bounce: the task was a bare slash-command, the run was duplicated a minute later instead of resumed, and the NCCMarket work proceeded outside the harness. Both root causes are fixed on master (pre-spend task validation + the duplicate-run guard, v2.2)."
+}

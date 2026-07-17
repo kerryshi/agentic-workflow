@@ -1,0 +1,1471 @@
+diff --git a/AGENTS.md b/AGENTS.md
+index 9b9cf8f..fac5a61 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -47,4 +47,11 @@ good touches to land a client, not spam.
+ - Going `--live` on send. The default is always dry-run.
+ 
+ ## Known Agent Mistakes
+-- (append here as they happen so future runs avoid them)
++- **Seeding several test leads with the same `name`.** `db.upsert_lead` dedupes on the
++  normalized `name|city|state` key within a source, so `[_lead("n/1"), _lead("n/2")]`
++  sharing a name collapses to ONE row and cap/batch tests silently assert against 1 lead.
++  Give each seeded lead a distinct name (2026-07-16).
++- **Testing only against a freshly `init_db`'d DB.** Fixtures that call `init_db` hide
++  missing-table/migration bugs that hit the operator's real, older `data/leads.sqlite`.
++  The `sends` ledger shipped with exactly this bug; run the real CLI once before
++  claiming done (2026-07-16).
+diff --git a/docs/GO-LIVE.md b/docs/GO-LIVE.md
+index 1102844..28f8100 100644
+--- a/docs/GO-LIVE.md
++++ b/docs/GO-LIVE.md
+@@ -3,11 +3,12 @@
+ **Written 2026-07-12.** The engineering is done; the funnel is mature (315 tests, ruff clean).
+ This is the ordered path to the first real send. Most of it is *not* code.
+ 
+-> **The headline:** `send --live` is **not a flag you flip.** `send_batch()` contains no SMTP
+-> transmission path at all — `--live` is an unconditional refusal that prints the guard, shows the
+-> dry-run preview, and returns exit 2 (`outreach/send.py:_print_live_guard`). The sender has to be
+-> **built**, deliberately and with sign-off. STATUS.md's "flip `send --live`" understates this.
+-> That was a correct safety decision (AGENTS.md: never auto-send). It is now the bottleneck.
++> **The headline:** `send --live` is **still not a flag you flip** — but as of 2026-07-16 the
++> sender exists (step 3 below is built). `--live` alone does nothing: a real send needs **all three
++> gates** — the `--live` flag, a **complete** SMTP/SENDER env config, and an explicit **`--cap N`**
++> — and any missing one prints the failed gate, shows the dry-run preview, and returns exit 2
++> (`outreach/send.py:live_blockers`). Dry-run is still the default and still cannot send.
++> **The bottleneck is now step 1, not code**: no sending domain, no SPF/DKIM/DMARC, no env config.
+ 
+ ---
+ 
+@@ -54,26 +55,63 @@ SENDER_EMAIL   SENDER_NAME   SENDER_ADDRESS      # SENDER_ADDRESS = the CAN-SPAM
+ IMAP_HOST   IMAP_PORT   IMAP_USER   IMAP_PASSWORD   # the unsubscribe/reply mailbox
+ ```
+ 
+-`send.missing_for_live()` already checks the three that block a send: `SMTP_HOST`, `SENDER_EMAIL`,
+-`SENDER_ADDRESS`. Run `send` (dry-run) and it will name whatever is still missing.
+-
+-## Step 3 — Build the sender (a real, signed-off change — NOT a flag)
+-
+-This does not exist yet. When you decide to build it, it must carry, at minimum:
+-
+-- **A DNC re-check at send time**, not just at selection time. The list can change between the two.
+-- **Cap enforcement** against `daily_send_cap`, counted from what was *actually sent today*, not
+-  from the batch size.
+-- **Idempotency.** A crash mid-batch must not re-send on retry. Record the send before/atomically
+-  with the transmission, not after.
+-- **Status advance to `sent`** through the (now forward-only) `db.set_status`.
+-- **The CAN-SPAM footer on every email** — already rendered by `render_email`; assert it in a test.
+-- **A real kill switch.** One command that stops everything mid-campaign.
+-- **A test that proves it does not send in dry-run.** The current guard's whole value is that
+-  dry-run cannot leak; do not lose that property while removing the refusal.
+-
+-Budget it as a proper change with an independent review — this is the one code path in the repo
+-that can do irreversible damage to real businesses' inboxes and your domain reputation.
++`send.missing_for_live()` now requires **all seven** — `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`,
++`SMTP_PASSWORD`, `SENDER_EMAIL`, `SENDER_NAME`, `SENDER_ADDRESS` (widened 2026-07-16: a gate that
++half-passes and then dies mid-batch is worse than no gate, because part of the batch has already
++landed). Run `send` (dry-run) with `--live` and it names whatever is still missing.
++
++**Nothing in that list is defaulted for you.** `SMTP_PORT` used to default to 587 in `config.py`,
++which meant the gate could never report it unset — it silently passed on a value you never chose.
++It is now `None` until you set it (587 is still the right value for most providers; put it in
++`.env`). A malformed port (`SMTP_PORT=eight-seven`) reads as unset rather than raising, so a typo
++produces the normal refusal + preview + exit 2 instead of a crash.
++
++Values must be **genuinely present**: whitespace is not a value. `SENDER_ADDRESS="   "` does not
++open the gate — it would otherwise authorize a live send whose CAN-SPAM footer names no real
++physical address, which is the one thing that footer exists to guarantee.
++
++## Step 3 — Build the sender — ✅ BUILT 2026-07-16 (still gated; review pending)
++
++The sender exists. It is **not** authorized to send by anything except an operator passing every
++gate on purpose. `send_batch` sends only when `live_blockers()` returns empty — the single
++chokepoint for the three gates:
++
++1. `--live`;
++2. complete env config (all seven above);
++3. `--cap N` — **required, no default**. Forgetting it means no send. The effective cap is
++   `min(--cap, daily_send_cap - sent_today)`. The two limits are different kinds: the daily
++   allowance is spent down by earlier runs, while `--cap` bounds only THIS run — so with
++   `daily=20` and one send already out, `--cap 5` sends 5, not 4.
++
++The checklist, as built:
++
++- ✅ **DNC re-checked at send time**, per lead, immediately before transmission — not reused from
++  triage. A `test_send_live.py` test sends lead A, registers an unsubscribe for lead B mid-batch,
++  and asserts B is spared.
++- ✅ **Cap counted from what was actually sent today** via the new `sends` ledger
++  (`db.sent_today_count`), not from batch size. Two runs in one day cannot each get a full daily
++  allowance. **Every claim counts, in any state** — `sent`, `claimed` (process died mid-flight), and
++  `failed` alike. A transport exception can be raised *after* the message was delivered, so a
++  failed claim that freed its slot would let the daily cap be exceeded.
++- ✅ **Idempotency.** `db.claim_send` is an `INSERT OR IGNORE` against `UNIQUE(lead_id)`, written
++  **before** the socket opens. A crash between claim and transmit leaves a `claimed` row that
++  blocks the retry. A *failed* send keeps its claim on purpose: we cannot know whether it reached
++  the wire, so it never auto-retries — clearing it is an operator decision. That same ambiguity is
++  why it still spends a cap slot.
++- ✅ **Status advance to `sent`** through forward-only `db.set_status` (never `force`).
++- ✅ **CAN-SPAM footer on every email** — asserted in `test_every_sent_body_carries_the_can_spam_footer`.
++- ✅ **Kill switch:** `stop` engages `data/STOP`; `stop --release` clears it. Checked before the run
++  **and before every single message**, so it halts a batch already in flight. It is cooperative —
++  it cannot abort a transmission already on the wire, and it is not an OS-level kill.
++- ✅ **Dry-run cannot leak.** The transport is constructed only inside the all-gates-passed branch,
++  and `tests/conftest.py` poisons `smtplib.SMTP`/`SMTP_SSL` suite-wide, so any accidental real
++  connection in any test is a hard failure rather than an email.
++
++**Still outstanding:** this has NOT had the independent review GO-LIVE asks for, and it adds a DB
++table (`sends`) — a schema change, which AGENTS.md classes as an escalation. It is additive
++(`CREATE TABLE IF NOT EXISTS`, no existing table or column touched) and forward-migrates through
++`init_db`, but it wants a second pair of eyes before a first real send. This is the one code path
++in the repo that can do irreversible damage to real businesses' inboxes and your domain reputation.
+ 
+ ## Step 4 — Then, and only then, work the queue
+ 
+@@ -84,7 +122,8 @@ that can do irreversible damage to real businesses' inboxes and your domain repu
+ 
+ 1. `review` → approve a hot list → `review --import` (moves leads to `approved`).
+ 2. `send` dry-run first. Read the previews. Actually read them.
+-3. Send a batch of **5**, not 20. Watch what happens.
++3. Send a batch of **5**, not 20: `send --live --cap 5`. Watch what happens.
++   If anything looks wrong, `stop` — it halts the batch before its next message.
+ 4. `inbox --apply` to catch unsubscribes → DNC.
+ 5. `worklist` / the call console for outcomes; `metrics` for the funnel.
+ 
+diff --git a/src/outreach_webmaster/cli.py b/src/outreach_webmaster/cli.py
+index 364499a..4eadbdd 100644
+--- a/src/outreach_webmaster/cli.py
++++ b/src/outreach_webmaster/cli.py
+@@ -1,7 +1,8 @@
+ """Command-line entry point. Wires the pipeline stages together.
+ 
+ All stages are implemented: source | enrich | score | draft | review | send
+-(plus the `run` convenience). `send` is dry-run by default and refuses `--live`.
++(plus the `run` convenience). `send` is dry-run by default; `--live` sends only with
++complete env config AND an explicit `--cap N`, and `stop` is the kill switch.
+ """
+ 
+ from __future__ import annotations
+@@ -40,7 +41,8 @@ STAGES = {
+     "score": "Apply the fit band, rank, and tag a project tier + price.",
+     "draft": "Generate a personalized hook per lead (local Ollama / Claude).",
+     "review": "Export the ranked hot list for human approval.",
+-    "send": "Send approved outreach (dry-run by default; --live to send).",
++    "send": "Send approved outreach (dry-run by default; --live AND --cap N to send).",
++    "stop": "Kill switch: block every live send immediately (--release to clear).",
+     "worklist": "Export approved leads to a worklist (--import logs filled outcomes back).",
+     "optout": "Register an email / phone / domain on the do-not-contact list.",
+     "inbox": "Scan the reply mailbox for unsubscribe requests (--apply registers them on DNC).",
+@@ -616,8 +618,24 @@ def _review(settings: Settings, *, do_import: bool) -> int:
+     return 0
+ 
+ 
+-def _send(settings: Settings, *, live: bool) -> int:
+-    return send.send_batch(live=live, settings=settings)
++def _send(settings: Settings, *, live: bool, cap: int | None) -> int:
++    return send.send_batch(live=live, settings=settings, cap=cap)
++
++
++def _stop(*, release: bool) -> int:
++    """The kill switch. One command that stops every live send, mid-campaign included."""
++    if release:
++        if send.release_stop():
++            print(f"[stop] kill switch RELEASED ({send.STOP_FILE}). Live sends are possible again")
++            print("       (still gated on --live + complete env config + --cap N).")
++        else:
++            print(f"[stop] kill switch was not engaged ({send.STOP_FILE}) — nothing to release.")
++        return 0
++    path = send.engage_stop("stopped via `stop`")
++    print(f"[stop] kill switch ENGAGED ({path}). No live send can start or continue.")
++    print("       A batch already running stops before its next message.")
++    print("       Run `stop --release` to clear it.")
++    return 0
+ 
+ 
+ def _autopilot(settings: Settings) -> int:
+@@ -803,7 +821,22 @@ def build_parser() -> argparse.ArgumentParser:
+             stage_parser.add_argument(
+                 "--live",
+                 action="store_true",
+-                help="Actually send. Without this flag, runs in dry-run (default).",
++                help="Actually send. Without this flag, runs in dry-run (default). "
++                "Requires complete SMTP/SENDER env config AND --cap N.",
++            )
++            stage_parser.add_argument(
++                "--cap",
++                type=int,
++                default=None,
++                help="REQUIRED for --live: send at most N emails this run. No default — "
++                "omitting it refuses the send. Effective cap = min(N, daily_send_cap) "
++                "minus what already went out today.",
++            )
++        if name == "stop":
++            stage_parser.add_argument(
++                "--release",
++                action="store_true",
++                help="Clear the kill switch instead of engaging it.",
+             )
+         if name == "source":
+             stage_parser.add_argument(
+@@ -969,7 +1002,9 @@ def main(argv: list[str] | None = None) -> int:
+     if args.stage == "review":
+         return _review(load_settings(), do_import=args.do_import)
+     if args.stage == "send":
+-        return _send(load_settings(), live=args.live)
++        return _send(load_settings(), live=args.live, cap=args.cap)
++    if args.stage == "stop":
++        return _stop(release=args.release)
+     if args.stage == "worklist":
+         return _worklist(load_settings(), do_import=args.do_import)
+     if args.stage == "optout":
+diff --git a/src/outreach_webmaster/config.py b/src/outreach_webmaster/config.py
+index 3e167b3..92b3021 100644
+--- a/src/outreach_webmaster/config.py
++++ b/src/outreach_webmaster/config.py
+@@ -106,15 +106,33 @@ class DraftConfig:
+         )
+ 
+ 
++def _parse_port(raw: str | None) -> int | None:
++    """A TCP port from the env, or None if unset/unusable.
++
++    Deliberately never raises. This runs at config load — i.e. BEFORE the send stage's
++    `live_blockers()` can speak — so a typo'd SMTP_PORT must degrade into "the port gate
++    is unsatisfied" (refusal + preview + exit 2), not crash the stage before the guard
++    it was supposed to trip.
++    """
++    if raw is None or not raw.strip():
++        return None
++    try:
++        port = int(raw.strip())
++    except ValueError:
++        return None
++    return port if 1 <= port <= 65535 else None
++
++
+ @dataclass
+ class SendConfig:
+     """Settings for the send stage: the subject template from config.yaml plus the
+     sender identity / SMTP secrets from .env.
+ 
+-    No value here makes the pipeline send: sending is dry-run by default and
+-    `--live` is a guarded refusal in this build. These fields exist so the dry-run
+-    can render a faithful, CAN-SPAM-complete preview (sender + physical address +
+-    opt-out) and so a future, signed-off go-live step has its config in one place.
++    No value here makes the pipeline send: sending is dry-run by default, and a live
++    send additionally requires an explicit `--live`, an explicit per-run `--cap N`, and
++    every field below actually set (see `send.live_blockers`). Nothing here is defaulted
++    on the operator's behalf — a value this module invented could satisfy that gate
++    without the operator ever having chosen it.
+     """
+ 
+     # config.yaml `send:` tunables. Offer-neutral default: hooks may sell a phone
+@@ -126,7 +144,10 @@ class SendConfig:
+     sender_email: str | None = None
+     sender_address: str | None = None  # physical mailing address — required by CAN-SPAM
+     smtp_host: str | None = None
+-    smtp_port: int = 587
++    # No default: the live gate must prove the operator configured the WHOLE transport
++    # on purpose. A port invented here would silently satisfy that gate (it did — the
++    # old `587` default meant SMTP_PORT could never be reported unset).
++    smtp_port: int | None = None
+     smtp_user: str | None = None
+     smtp_password: str | None = None
+ 
+@@ -140,7 +161,7 @@ class SendConfig:
+             sender_email=os.getenv("SENDER_EMAIL") or None,
+             sender_address=os.getenv("SENDER_ADDRESS") or None,
+             smtp_host=os.getenv("SMTP_HOST") or None,
+-            smtp_port=int(os.getenv("SMTP_PORT") or 587),
++            smtp_port=_parse_port(os.getenv("SMTP_PORT")),
+             smtp_user=os.getenv("SMTP_USER") or None,
+             smtp_password=os.getenv("SMTP_PASSWORD") or None,
+         )
+diff --git a/src/outreach_webmaster/db.py b/src/outreach_webmaster/db.py
+index e746ac8..e9b8adb 100644
+--- a/src/outreach_webmaster/db.py
++++ b/src/outreach_webmaster/db.py
+@@ -61,6 +61,22 @@ CREATE TABLE IF NOT EXISTS outcomes (
+     created_at TEXT NOT NULL DEFAULT (datetime('now')),
+     FOREIGN KEY(lead_id) REFERENCES leads(id)
+ );
++
++-- The send ledger: one row per lead we have ever CLAIMED for a live email.
++-- Written BEFORE the SMTP transmission, never after, so a crash between the two
++-- leaves a 'claimed' row that blocks a re-send on retry rather than duplicating it.
++-- UNIQUE(lead_id) is what makes the claim atomic without holding a transaction open
++-- across a network socket.
++CREATE TABLE IF NOT EXISTS sends (
++    id         INTEGER PRIMARY KEY AUTOINCREMENT,
++    lead_id    INTEGER NOT NULL,
++    to_email   TEXT NOT NULL,
++    subject    TEXT,
++    state      TEXT NOT NULL DEFAULT 'claimed',   -- claimed | sent | failed
++    created_at TEXT NOT NULL DEFAULT (datetime('now')),
++    UNIQUE(lead_id),
++    FOREIGN KEY(lead_id) REFERENCES leads(id)
++);
+ """
+ 
+ # Columns written/read for a Lead (excludes id/created_at/updated_at).
+@@ -553,3 +569,91 @@ def is_dnc(value: str, path: Path = DEFAULT_DB) -> bool:
+     with _connect(path) as conn:
+         row = conn.execute("SELECT 1 FROM dnc WHERE value=?", (_dnc_norm(value),)).fetchone()
+     return row is not None
++
++
++# --- the send ledger --------------------------------------------------------
++# Only the live send path writes here. Nothing in this section sends anything;
++# it is the record that makes a send idempotent and the daily cap truthful.
++
++SEND_CLAIMED = "claimed"
++SEND_SENT = "sent"
++SEND_FAILED = "failed"
++
++
++def _has_table(conn: sqlite3.Connection, name: str) -> bool:
++    row = conn.execute(
++        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)
++    ).fetchone()
++    return row is not None
++
++
++def claim_send(
++    lead_id: int, to_email: str, subject: str | None = None, path: Path = DEFAULT_DB
++) -> bool:
++    """Reserve the right to send this lead exactly one email. True if we now own it.
++
++    This is the record-before-send atom: the caller MUST get True here before touching
++    SMTP, and must never transmit without it. `INSERT OR IGNORE` against UNIQUE(lead_id)
++    makes the claim a single atomic statement, so two concurrent runs — or a retry after
++    a crash that killed the process between claim and transmit — cannot both win it.
++    False means the lead was already claimed: skip it, do not re-send.
++    """
++    with _connect(path) as conn:
++        cur = conn.execute(
++            "INSERT OR IGNORE INTO sends (lead_id, to_email, subject) VALUES (?, ?, ?)",
++            (lead_id, to_email, subject),
++        )
++        return cur.rowcount > 0
++
++
++def mark_send(lead_id: int, state: str, path: Path = DEFAULT_DB) -> None:
++    """Record the outcome of a claimed send ('sent' or 'failed').
++
++    A 'failed' row deliberately KEEPS its claim: a lead whose send blew up mid-flight
++    may or may not have reached the recipient, so the safe reading is "do not try again
++    automatically". Clearing it is an operator decision.
++    """
++    with _connect(path) as conn:
++        conn.execute("UPDATE sends SET state=? WHERE lead_id=?", (str(state), lead_id))
++
++
++def sent_today_count(path: Path = DEFAULT_DB) -> int:
++    """Claims made today (local date) — the real daily-cap counter.
++
++    EVERY claim counts, whatever its state. A claim is written before the socket opens,
++    so each row is a message that may have reached a real inbox:
++
++    - 'sent'    — it certainly did;
++    - 'claimed' — the process died mid-flight; it may have;
++    - 'failed'  — the transport raised, but the exception may have come *after* delivery.
++      This is exactly why `mark_send` keeps a failed claim and never auto-retries. A
++      possibly-delivered message that frees a cap slot would let the daily cap be
++      exceeded — so the same ambiguity that blocks the retry must also spend the slot.
++
++    The cap must err toward under-sending, never over.
++
++    Returns 0 when the ledger table is absent: a DB predating the ledger has, by
++    definition, sent nothing through it. This is what lets the send stage compute a cap
++    on a legacy DB without `init_db` first — so a *dry-run* never has to migrate the
++    operator's database just to preview.
++    """
++    with _connect(path) as conn:
++        if not _has_table(conn, "sends"):
++            return 0
++        row = conn.execute(
++            "SELECT COUNT(*) AS n FROM sends "
++            "WHERE date(created_at, 'localtime')=date('now', 'localtime')"
++        ).fetchone()
++    return row["n"] if row else 0
++
++
++def send_state(lead_id: int, path: Path = DEFAULT_DB) -> str | None:
++    """The ledger state for a lead ('claimed' | 'sent' | 'failed'), or None if never claimed.
++
++    None on a pre-ledger DB, for the same reason as `sent_today_count`.
++    """
++    with _connect(path) as conn:
++        if not _has_table(conn, "sends"):
++            return None
++        row = conn.execute("SELECT state FROM sends WHERE lead_id=?", (lead_id,)).fetchone()
++    return row["state"] if row else None
+diff --git a/src/outreach_webmaster/outreach/send.py b/src/outreach_webmaster/outreach/send.py
+index a84ce72..2dd438e 100644
+--- a/src/outreach_webmaster/outreach/send.py
++++ b/src/outreach_webmaster/outreach/send.py
+@@ -9,17 +9,30 @@ is deliberately conservative:
+ - Every recipient is checked against the do-not-contact list and the daily cap.
+ - Every email carries a CAN-SPAM footer: sender identity, a physical mailing
+   address, and an opt-out line.
+-- **Dry-run is the default and never mutates the DB.** `--live` is a *guarded
+-  refusal* in this build — real SMTP sending is a separate, signed-off step
+-  (dedicated sending domain + SPF/DKIM/DMARC + go-live approval), so passing
+-  `--live` prints why it's blocked and still only previews. Honors the
+-  "never auto-send" rule in AGENTS.md.
++- **Dry-run is the default and never mutates the DB.**
++
++A live send requires THREE independent gates, all present, every run (`live_blockers`
++is the single chokepoint that decides):
++
++1. an explicit ``--live`` flag;
++2. **complete** SMTP/sender env config — the whole transport set, so the gate proves
++   the send can actually work rather than half-passing and crashing mid-batch;
++3. an explicit per-run ``--cap N``. It is deliberately NOT defaulted: forgetting the
++   flag means no send. The effective cap is ``min(--cap, daily_send_cap)``, further
++   reduced by what was already sent today.
++
++Miss any one and the stage prints which gate failed, shows the send-free preview
++anyway (it is diagnostic), and exits 2. The transport is constructed only inside the
++all-gates-passed branch, so no dry-run can reach SMTP even by accident. Honors the
++"never auto-send" rule in AGENTS.md.
+ """
+ 
+ from __future__ import annotations
+ 
++import smtplib
+ from collections.abc import Callable
+ from dataclasses import dataclass, field
++from email.message import EmailMessage
+ from pathlib import Path
+ 
+ from outreach_webmaster import db
+@@ -29,6 +42,11 @@ from outreach_webmaster.models import Lead, Status
+ # The opt-out mechanism CAN-SPAM requires. Plain-text and honored manually for now.
+ OPT_OUT_LINE = 'Not interested? Just reply "unsubscribe" and you won\'t hear from me again.'
+ 
++# The kill switch: one file, checked before the run AND before every single message,
++# so `stop` in another terminal halts a batch already in flight. Lives under the
++# gitignored data/ dir alongside the DB it guards.
++STOP_FILE = Path("data/STOP")
++
+ 
+ @dataclass
+ class Email:
+@@ -118,14 +136,92 @@ def render_email(lead: Lead, cfg: SendConfig) -> Email:
+     return Email(to="".join((lead.email or "").split()), subject=subject, body=body)
+ 
+ 
++def stop_engaged(path: Path = STOP_FILE) -> bool:
++    """True if the kill switch is engaged — no live send may start or continue."""
++    return Path(path).exists()
++
++
++def engage_stop(reason: str | None = None, path: Path = STOP_FILE) -> Path:
++    """Engage the kill switch. Idempotent; returns the switch file path.
++
++    Deliberately trivial: a file either exists or it does not, so the switch cannot
++    fail to work because of a bug in this function.
++    """
++    path = Path(path)
++    path.parent.mkdir(parents=True, exist_ok=True)
++    path.write_text(reason or "stopped by operator", encoding="utf-8")
++    return path
++
++
++def release_stop(path: Path = STOP_FILE) -> bool:
++    """Release the kill switch. True if it had been engaged."""
++    path = Path(path)
++    if not path.exists():
++        return False
++    path.unlink()
++    return True
++
++
++def _present(value: str | None) -> bool:
++    """True if a config string carries actual content.
++
++    Whitespace is not content. Raw truthiness would accept `SENDER_ADDRESS="   "`, which
++    authorizes a live send whose CAN-SPAM footer names no real physical address — the
++    exact thing the footer exists to guarantee.
++    """
++    return bool(value and value.strip())
++
++
++def _port_ok(port: int | None) -> bool:
++    """True if the SMTP port is a usable TCP port. `bool` is excluded deliberately:
++    it is a subclass of int, so `True` would otherwise read as port 1."""
++    return isinstance(port, int) and not isinstance(port, bool) and 1 <= port <= 65535
++
++
+ def missing_for_live(cfg: SendConfig) -> list[str]:
+-    """The identity/transport pieces that must be set before a real send is possible."""
++    """The identity/transport pieces that must ALL be set before a real send is possible.
++
++    The whole transport set, not just the identity fields: a gate that passes on partial
++    config and then dies inside the SMTP loop is weaker than no gate, because it fails
++    after some of the batch has already reached real inboxes.
++
++    Every value must be genuinely present — stripped, non-empty, and for the port a real
++    TCP port. Nothing is defaulted here or in `config.SendConfig`, so passing this gate
++    means the operator set each value on purpose.
++    """
+     checks = {
+-        "SMTP_HOST": cfg.smtp_host,
+-        "SENDER_EMAIL": cfg.sender_email,
+-        "SENDER_ADDRESS (CAN-SPAM)": cfg.sender_address,
++        "SMTP_HOST": _present(cfg.smtp_host),
++        "SMTP_PORT": _port_ok(cfg.smtp_port),
++        "SMTP_USER": _present(cfg.smtp_user),
++        "SMTP_PASSWORD": _present(cfg.smtp_password),
++        "SENDER_EMAIL": _present(cfg.sender_email),
++        "SENDER_NAME": _present(cfg.sender_name),
++        "SENDER_ADDRESS (CAN-SPAM)": _present(cfg.sender_address),
+     }
+-    return [name for name, value in checks.items() if not value]
++    return [name for name, ok in checks.items() if not ok]
++
++
++def live_blockers(cfg: SendConfig, cap: int | None, stop_path: Path = STOP_FILE) -> list[str]:
++    """Every reason this run may NOT send live. Empty list = permitted.
++
++    The single source of truth for the three gates. Everything that could authorize a
++    real send is decided here and nowhere else, so there is exactly one place to audit.
++    """
++    blockers: list[str] = []
++
++    missing = missing_for_live(cfg)
++    if missing:
++        blockers.append(f"incomplete env config — unset: {', '.join(missing)}")
++
++    if cap is None:
++        blockers.append("--cap N is required for --live (a per-run send cap is not optional)")
++    elif cap <= 0:
++        blockers.append(f"--cap must be a positive integer (got {cap})")
++
++    if stop_engaged(stop_path):
++        blockers.append(f"kill switch engaged ({stop_path}) — run `stop --release` to clear")
++
++    return blockers
+ 
+ 
+ def _format_preview(email: Email) -> str:
+@@ -137,44 +233,169 @@ def _format_preview(email: Email) -> str:
+     )
+ 
+ 
+-def _print_live_guard(cfg: SendConfig) -> None:
++def _print_live_guard(blockers: list[str]) -> None:
+     print(
+-        "[send] --live is refused in this build. A real send is a separate, "
+-        "signed-off step:\n"
+-        "       a dedicated sending domain (SPF/DKIM/DMARC), a physical mailing "
+-        "address, and explicit go-live approval.\n"
+-        "       Showing the dry-run preview instead — nothing will be sent."
++        "[send] --live REFUSED — a live send needs all three gates and this run is "
++        "missing at least one:"
+     )
+-    missing = missing_for_live(cfg)
+-    if missing:
+-        print(f"       Still unset for go-live: {', '.join(missing)}.")
++    for reason in blockers:
++        print(f"       - {reason}")
++    print("       Showing the dry-run preview instead — nothing will be sent.")
+     print()
+ 
+ 
++def _smtp_transport(cfg: SendConfig) -> Callable[[Email], None]:
++    """Build the real SMTP transport. Only ever called once every gate has passed.
++
++    Kept behind a factory so `send_batch`'s dry-run path never constructs a connection
++    object at all — the no-send property is structural, not a branch we remembered to
++    take.
++    """
++
++    def transport(email: Email) -> None:
++        msg = EmailMessage()
++        msg["From"] = f"{cfg.sender_name} <{cfg.sender_email}>"
++        msg["To"] = email.to
++        msg["Subject"] = email.subject
++        msg.set_content(email.body)
++        with smtplib.SMTP(cfg.smtp_host, cfg.smtp_port) as conn:
++            conn.starttls()
++            conn.login(cfg.smtp_user, cfg.smtp_password)
++            conn.send_message(msg)
++
++    return transport
++
++
++def _effective_cap(settings: Settings, cap: int | None, path: Path) -> int:
++    """How many emails this run may actually send.
++
++    Two limits of different KINDS compose, and the distinction matters:
++
++    - `daily_send_cap` is an allowance for the whole day, so what already went out today
++      is subtracted from it. Two runs in one day cannot each get a full day's worth.
++    - `--cap` is a limit on THIS RUN, so earlier runs do not consume it.
++
++    Hence `min(cap, daily_remaining)` — not `min(cap, daily) - sent_today`, which charged
++    prior sends against both limits and silently shrank the per-run cap the operator
++    asked for (daily=20, --cap=5, 1 already sent used to permit 4).
++    """
++    daily_remaining = max(0, settings.daily_send_cap - db.sent_today_count(path))
++    return daily_remaining if cap is None else min(cap, daily_remaining)
++
++
++def _send_live(
++    sel: Selection,
++    cfg: SendConfig,
++    transport: Callable[[Email], None],
++    path: Path,
++    stop_path: Path,
++) -> tuple[int, int, int]:
++    """Transmit the selected batch. Returns (sent, skipped, errors).
++
++    Per lead, in this order and no other:
++      1. kill switch — abort the rest of the batch;
++      2. DNC re-checked NOW (the list can change between selection and send);
++      3. claim the send in the ledger BEFORE the socket opens;
++      4. transmit;
++      5. only then mark 'sent' and advance the status forward-only.
++    """
++    sent = skipped = errors = 0
++
++    for lead in sel.to_send:
++        if stop_engaged(stop_path):
++            remaining = len(sel.to_send) - (sent + skipped + errors)
++            print(f"[send] KILL SWITCH engaged — aborting, {remaining} lead(s) left unsent.")
++            break
++
++        # The do-not-contact list is re-read per lead, not reused from triage: an
++        # unsubscribe registered while this batch was running must be honored.
++        if any(db.is_dnc(key, path) for key in dnc_keys(lead)):
++            print(f"[send] skip {lead.email} — on do-not-contact as of now.")
++            skipped += 1
++            continue
++
++        row = db.find_lead(lead.source, lead.source_id, path=path)
++        if row is None:
++            print(f"[send] skip {lead.email} — no DB row for {lead.source}/{lead.source_id}.")
++            skipped += 1
++            continue
++
++        email = render_email(lead, cfg)
++        if not db.claim_send(row["id"], email.to, email.subject, path):
++            print(f"[send] skip {email.to} — already claimed in the send ledger.")
++            skipped += 1
++            continue
++
++        try:
++            transport(email)
++        except Exception as exc:  # noqa: BLE001 — one bad recipient must not abort the batch
++            # The claim stays. We cannot know whether the message reached the wire, so
++            # the safe reading is "never retry automatically".
++            db.mark_send(row["id"], db.SEND_FAILED, path)
++            print(f"[send] ERROR sending to {email.to}: {exc}")
++            errors += 1
++            continue
++
++        db.mark_send(row["id"], db.SEND_SENT, path)
++        db.set_status(row["id"], Status.SENT, path)  # forward-only; never force
++        print(f"[send] sent -> {email.to}")
++        sent += 1
++
++    return sent, skipped, errors
++
++
+ def send_batch(
+     live: bool = False,
+     settings: Settings | None = None,
+     path: Path = db.DEFAULT_DB,
++    cap: int | None = None,
++    transport: Callable[[Email], None] | None = None,
++    stop_path: Path = STOP_FILE,
+ ) -> int:
+-    """Preview the next batch of approved outreach. Never sends; never mutates the DB.
++    """Preview — or, with every gate satisfied, actually send — the next approved batch.
++
++    Dry-run is the default and never sends, never mutates the DB, and never builds a
++    transport. `live=True` sends ONLY if `live_blockers` is empty; otherwise it names the
++    failed gate, previews, and returns 2.
+ 
+-    Returns 0 for a clean dry-run, or 2 when `--live` was requested (and refused),
+-    so callers/CI can tell that the operator's "send for real" was not honored.
++    `transport` is injected only by tests (a fake); the real SMTP transport is built
++    inside the permitted branch.
++
++    Returns 0 for a clean dry-run or a clean live send, 1 if a live send hit transmission
++    errors, and 2 when `--live` was requested but refused.
+     """
+     settings = settings or load_settings()
+     cfg = settings.send
++
++    blockers = live_blockers(cfg, cap, stop_path) if live else []
++    permitted = bool(live) and not blockers
++    refused = bool(live) and bool(blockers)
++
++    if refused:
++        _print_live_guard(blockers)
++
+     sel = select_recipients(
+-        db.all_leads(path), settings.daily_send_cap, lambda v: db.is_dnc(v, path)
++        db.all_leads(path), _effective_cap(settings, cap, path), lambda v: db.is_dnc(v, path)
+     )
+ 
+-    refused = bool(live)
+-    if live:
+-        _print_live_guard(cfg)
+-
+     if not (sel.to_send or sel.suppressed or sel.over_cap or sel.manual):
+         print("[send] no APPROVED leads — run `review --import` to approve a hot list first.")
+         return 2 if refused else 0
+ 
++    if permitted:
++        db.init_db(path)  # idempotent; creates the send ledger on an older DB
++        print(f"[send] LIVE — sending {len(sel.to_send)} email(s) (cap {cap}).")
++        sent, skipped, errors = _send_live(
++            sel, cfg, transport or _smtp_transport(cfg), path, stop_path
++        )
++        print(
++            f"[send] LIVE done — sent {sent}; skipped {skipped}; errors {errors}; "
++            f"suppressed {len(sel.suppressed)} on do-not-contact; "
++            f"{len(sel.over_cap)} held back over the cap; "
++            f"{len(sel.manual)} approved with no email -> manual follow-up (call/DM)."
++        )
++        return 1 if errors else 0
++
+     for lead in sel.to_send:
+         print(_format_preview(render_email(lead, cfg)))
+     if sel.to_send:
+diff --git a/tests/conftest.py b/tests/conftest.py
+new file mode 100644
+index 0000000..cf8b95b
+--- /dev/null
++++ b/tests/conftest.py
+@@ -0,0 +1,36 @@
++"""Suite-wide safety net: no test may ever open an SMTP connection.
++
++The send stage is the one code path in this repo that can do irreversible damage to
++real businesses' inboxes (docs/GO-LIVE.md). Its no-send property is enforced in the
++code by three gates, but a test is exactly the place where someone constructs a config
++that satisfies all of them — so the guarantee must not rest on every future test author
++remembering to inject a fake transport.
++
++This fixture is autouse and unconditional: every SMTP entry point raises before it can
++resolve a hostname. An accidental real transport is therefore a loud test failure, not
++an outbound email.
++"""
++
++from __future__ import annotations
++
++import smtplib
++
++import pytest
++
++
++class SMTPSendAttemptedInTests(AssertionError):
++    """Raised when a test tries to open a real SMTP connection."""
++
++
++@pytest.fixture(autouse=True)
++def _no_real_smtp(monkeypatch):
++    """Poison every smtplib entry point for the whole suite."""
++
++    def _explode(*args, **kwargs):
++        raise SMTPSendAttemptedInTests(
++            "A test attempted a real SMTP connection. Tests must inject a fake "
++            "transport into send.send_batch(transport=...) — never open a socket."
++        )
++
++    monkeypatch.setattr(smtplib, "SMTP", _explode)
++    monkeypatch.setattr(smtplib, "SMTP_SSL", _explode)
+diff --git a/tests/test_config.py b/tests/test_config.py
+index 44aa225..3121bfa 100644
+--- a/tests/test_config.py
++++ b/tests/test_config.py
+@@ -3,7 +3,13 @@
+ import pytest
+ 
+ from outreach_webmaster import cli
+-from outreach_webmaster.config import CategoryProfile, FitBand, Settings, load_settings
++from outreach_webmaster.config import (
++    CategoryProfile,
++    FitBand,
++    SendConfig,
++    Settings,
++    load_settings,
++)
+ from outreach_webmaster.sourcing import overpass
+ 
+ _YAML = """
+@@ -89,3 +95,29 @@ def test_category_profile_non_numeric_margin_names_the_category(tmp_path):
+     )
+     with pytest.raises(ValueError, match="florist"):
+         load_settings(cfg)
++
++
++# --- SendConfig: SMTP_PORT must be a real env value, not a default ----------
++# The live gate requires the FULL transport set. A port that config invents on the
++# operator's behalf makes that gate a lie, so these pin the loader's behavior.
++
++
++def test_smtp_port_is_none_when_unset(monkeypatch):
++    # Regression: smtp_port defaulted to 587, so omitting SMTP_PORT silently satisfied
++    # a gate that is supposed to prove every transport value was configured on purpose.
++    monkeypatch.delenv("SMTP_PORT", raising=False)
++    assert SendConfig.load({}).smtp_port is None
++
++
++def test_smtp_port_parses_a_valid_value(monkeypatch):
++    monkeypatch.setenv("SMTP_PORT", "2525")
++    assert SendConfig.load({}).smtp_port == 2525
++
++
++@pytest.mark.parametrize("bad", ["not-a-port", "", "  ", "0", "-1", "99999", "58.7"])
++def test_malformed_smtp_port_becomes_none_instead_of_raising(monkeypatch, bad):
++    # Regression: int(os.getenv(...)) raised ValueError during load — i.e. BEFORE
++    # live_blockers() could run — so a typo'd port crashed the stage instead of
++    # producing the required refusal + preview + exit 2.
++    monkeypatch.setenv("SMTP_PORT", bad)
++    assert SendConfig.load({}).smtp_port is None
+diff --git a/tests/test_send.py b/tests/test_send.py
+index 52ba674..d740cf8 100644
+--- a/tests/test_send.py
++++ b/tests/test_send.py
+@@ -178,13 +178,18 @@ def test_send_batch_dry_run_previews_without_mutating(tmp_path, capsys):
+     assert db.all_leads(dbpath)[0].status == Status.APPROVED
+ 
+ 
+-def test_send_batch_live_is_refused_and_changes_nothing(tmp_path, capsys):
++def test_send_batch_live_without_cap_is_refused_and_changes_nothing(tmp_path, capsys):
++    # --live alone is never enough: the per-run cap and complete env config are
++    # independent gates, and _cfg() here supplies neither a cap nor a full SMTP set.
+     dbpath = _seed_db(tmp_path)
+-    rc = send.send_batch(live=True, settings=_settings(), path=dbpath)
++    rc = send.send_batch(
++        live=True, settings=_settings(), path=dbpath, stop_path=tmp_path / "STOP"
++    )
+     out = capsys.readouterr().out
+ 
+     assert rc == 2  # signals the requested live send was NOT honored
+-    assert "--live is refused" in out
++    assert "--live REFUSED" in out
++    assert "--cap N is required" in out  # names the gate that failed
+     assert db.all_leads(dbpath)[0].status == Status.APPROVED  # still not sent
+ 
+ 
+diff --git a/tests/test_send_live.py b/tests/test_send_live.py
+new file mode 100644
+index 0000000..2af0e3f
+--- /dev/null
++++ b/tests/test_send_live.py
+@@ -0,0 +1,610 @@
++"""The live-send contract: the three gates, and the GO-LIVE step-3 checklist.
++
++Nothing here sends. Every test that exercises the permitted-live path injects a fake
++transport that records into a list, and `tests/conftest.py` poisons `smtplib.SMTP`
++suite-wide, so a real socket is a hard failure rather than an email.
++
++What these tests pin down (docs/GO-LIVE.md step 3):
++  - --live alone, or with partial env, or without --cap, never sends;
++  - dry-run never even calls a transport;
++  - a claim is recorded BEFORE transmission, so a crash cannot re-send on retry;
++  - the cap is counted from what was actually sent today, not from batch size;
++  - DNC is re-checked at send time, not just at selection;
++  - the status advance is forward-only;
++  - every transmitted body carries the CAN-SPAM footer;
++  - the kill switch stops a batch, including one already in flight.
++"""
++
++from __future__ import annotations
++
++import pytest
++
++from outreach_webmaster import db
++from outreach_webmaster.config import SendConfig, Settings
++from outreach_webmaster.models import Lead, Status
++from outreach_webmaster.outreach import send
++
++
++def _full_cfg(**over) -> SendConfig:
++    """A config where every live gate on the env is satisfied."""
++    base = dict(
++        subject_template="A quick idea for {business}",
++        sender_name="Kerry Shi",
++        sender_email="kerry@example.com",
++        sender_address="123 Main St, Austin, TX 78701",
++        smtp_host="smtp.example.com",
++        smtp_port=587,
++        smtp_user="kerry@example.com",
++        smtp_password="not-a-real-password",  # noqa: S106 — fake, never leaves the test
++    )
++    base.update(over)
++    return SendConfig(**base)
++
++
++def _settings(cfg: SendConfig | None = None, daily_send_cap: int = 20) -> Settings:
++    return Settings(
++        categories=[],
++        regions=[],
++        fit=None,
++        send=cfg or _full_cfg(),
++        daily_send_cap=daily_send_cap,
++    )
++
++
++def _approved(source_id: str, **over) -> Lead:
++    # The name must be unique per lead: upsert_lead dedupes on normalized
++    # name|city|state within a source, so same-named leads collapse to one row.
++    fields = dict(
++        source="overpass",
++        source_id=source_id,
++        name=f"Acme Dental {source_id}",
++        email=f"{source_id}@acme.test",
++        hook="Hi Acme Dental, I noticed your site isn't mobile-friendly.",
++        status=Status.APPROVED,
++    )
++    fields.update(over)
++    return Lead(**fields)
++
++
++@pytest.fixture
++def dbpath(tmp_path):
++    path = tmp_path / "leads.sqlite"
++    db.init_db(path)
++    return path
++
++
++@pytest.fixture
++def stop_path(tmp_path):
++    # Never the real data/STOP — tests must not touch the operator's kill switch.
++    return tmp_path / "STOP"
++
++
++def _seed(dbpath, *leads: Lead) -> list[int]:
++    return [db.upsert_lead(lead, dbpath) for lead in (leads or (_approved("n/1"),))]
++
++
++class Recorder:
++    """A fake transport. Records what it was handed; never opens a socket."""
++
++    def __init__(self, fail_on: str | None = None):
++        self.sent: list[send.Email] = []
++        self.fail_on = fail_on
++
++    def __call__(self, email: send.Email) -> None:
++        if self.fail_on and self.fail_on in email.to:
++            raise RuntimeError("simulated SMTP failure")
++        self.sent.append(email)
++
++
++def _explode(email):  # pragma: no cover - invoked only if a gate leaks
++    raise AssertionError(f"transport called when it must not be (to={email.to})")
++
++
++# --- gate 1+3: --live requires an explicit --cap -----------------------------
++
++
++def test_live_without_cap_sends_nothing(dbpath, stop_path, capsys):
++    _seed(dbpath)
++    rc = send.send_batch(
++        live=True, settings=_settings(), path=dbpath, transport=_explode, stop_path=stop_path
++    )
++    out = capsys.readouterr().out
++
++    assert rc == 2
++    assert "--cap N is required" in out
++    assert "DRY RUN" in out  # the preview still runs — it is diagnostic
++    assert db.all_leads(dbpath)[0].status == Status.APPROVED
++    assert db.sent_today_count(dbpath) == 0
++
++
++@pytest.mark.parametrize("cap", [0, -1])
++def test_live_with_nonpositive_cap_sends_nothing(dbpath, stop_path, capsys, cap):
++    _seed(dbpath)
++    rc = send.send_batch(
++        live=True,
++        settings=_settings(),
++        path=dbpath,
++        cap=cap,
++        transport=_explode,
++        stop_path=stop_path,
++    )
++
++    assert rc == 2
++    assert "--cap must be a positive integer" in capsys.readouterr().out
++    assert db.all_leads(dbpath)[0].status == Status.APPROVED
++
++
++# --- gate 2: the env config must be COMPLETE ---------------------------------
++
++
++@pytest.mark.parametrize(
++    "field,label",
++    [
++        ("smtp_host", "SMTP_HOST"),
++        ("smtp_user", "SMTP_USER"),
++        ("smtp_password", "SMTP_PASSWORD"),
++        ("sender_email", "SENDER_EMAIL"),
++        ("sender_name", "SENDER_NAME"),
++        ("sender_address", "SENDER_ADDRESS"),
++    ],
++)
++def test_live_with_any_env_piece_missing_sends_nothing(dbpath, stop_path, capsys, field, label):
++    # Every single field is load-bearing: a partial pass that crashes mid-batch is
++    # worse than no gate, because part of the batch has already hit real inboxes.
++    _seed(dbpath)
++    cfg = _full_cfg(**{field: None})
++    rc = send.send_batch(
++        live=True,
++        settings=_settings(cfg),
++        path=dbpath,
++        cap=5,
++        transport=_explode,
++        stop_path=stop_path,
++    )
++    out = capsys.readouterr().out
++
++    assert rc == 2
++    assert "incomplete env config" in out
++    assert label in out  # names the specific missing var
++    assert db.all_leads(dbpath)[0].status == Status.APPROVED
++
++
++def test_missing_for_live_flags_nonpositive_port():
++    assert "SMTP_PORT" in send.missing_for_live(_full_cfg(smtp_port=0))
++    assert "SMTP_PORT" not in send.missing_for_live(_full_cfg())
++
++
++def test_missing_for_live_flags_unset_port():
++    # Regression: SMTP_PORT used to default to 587 in config, so omitting it silently
++    # passed a gate Kerry required to prove the whole transport set is present.
++    assert "SMTP_PORT" in send.missing_for_live(_full_cfg(smtp_port=None))
++
++
++@pytest.mark.parametrize(
++    "field,label",
++    [
++        ("smtp_host", "SMTP_HOST"),
++        ("smtp_user", "SMTP_USER"),
++        ("smtp_password", "SMTP_PASSWORD"),
++        ("sender_email", "SENDER_EMAIL"),
++        ("sender_name", "SENDER_NAME"),
++        ("sender_address", "SENDER_ADDRESS"),
++    ],
++)
++def test_whitespace_only_env_values_do_not_satisfy_the_gate(field, label):
++    # Regression: raw truthiness let "   " through. A whitespace-only SENDER_ADDRESS
++    # is the worst case — it would authorize a live send whose CAN-SPAM footer carries
++    # no meaningful physical address at all.
++    missing = send.missing_for_live(_full_cfg(**{field: "   "}))
++    assert any(label in name for name in missing), f"{label} not flagged, got {missing}"
++
++
++def test_whitespace_sender_address_cannot_authorize_a_live_send(dbpath, stop_path, capsys):
++    _seed(dbpath)
++    rc = send.send_batch(
++        live=True,
++        settings=_settings(_full_cfg(sender_address="  \t ")),
++        path=dbpath,
++        cap=5,
++        transport=_explode,
++        stop_path=stop_path,
++    )
++    out = capsys.readouterr().out
++
++    assert rc == 2
++    assert "SENDER_ADDRESS" in out
++    assert db.all_leads(dbpath)[0].status == Status.APPROVED
++
++
++def test_live_blockers_empty_when_all_gates_pass(tmp_path):
++    assert send.live_blockers(_full_cfg(), cap=5, stop_path=tmp_path / "STOP") == []
++
++
++# --- legacy DBs (created before the send ledger existed) ---------------------
++
++
++def _drop_sends(path):
++    """Recreate the pre-ledger schema: a DB from before `sends` existed."""
++    import sqlite3
++
++    with sqlite3.connect(path) as conn:
++        conn.execute("DROP TABLE sends")
++
++
++def test_dry_run_works_on_a_db_without_the_send_ledger(dbpath, stop_path, capsys):
++    # Regression: the cap is computed (and so the ledger read) on EVERY run, including
++    # dry-run, but the ledger table only appears once init_db has migrated the DB. On a
++    # real pre-2026-07-16 DB that made a plain dry-run crash with "no such table: sends".
++    _seed(dbpath)
++    _drop_sends(dbpath)
++
++    rc = send.send_batch(live=False, settings=_settings(), path=dbpath, stop_path=stop_path)
++    out = capsys.readouterr().out
++
++    assert rc == 0
++    assert "DRY RUN" in out
++    assert db.all_leads(dbpath)[0].status == Status.APPROVED
++
++
++def test_live_refusal_works_on_a_db_without_the_send_ledger(dbpath, stop_path, capsys):
++    # Same path, but the operator asked for --live: it must still reach the gate
++    # refusal (exit 2), not die on the missing table first.
++    _seed(dbpath)
++    _drop_sends(dbpath)
++
++    rc = send.send_batch(
++        live=True, settings=_settings(), path=dbpath, transport=_explode, stop_path=stop_path
++    )
++
++    assert rc == 2
++    assert "--cap N is required" in capsys.readouterr().out
++
++
++def test_sent_today_count_is_zero_without_the_ledger(dbpath):
++    _drop_sends(dbpath)
++    assert db.sent_today_count(dbpath) == 0
++
++
++def test_live_send_migrates_a_legacy_db_and_sends(dbpath, stop_path):
++    # The live path creates the ledger before it claims anything, so a legacy DB
++    # still sends correctly once every gate passes.
++    (lead_id,) = _seed(dbpath)
++    _drop_sends(dbpath)
++    rec = Recorder()
++
++    rc = send.send_batch(
++        live=True, settings=_settings(), path=dbpath, cap=5, transport=rec, stop_path=stop_path
++    )
++
++    assert rc == 0
++    assert [e.to for e in rec.sent] == ["n/1@acme.test"]
++    assert db.send_state(lead_id, dbpath) == db.SEND_SENT
++
++
++# --- the dry-run default never reaches a transport ---------------------------
++
++
++def test_dry_run_never_calls_transport(dbpath, stop_path, capsys):
++    _seed(dbpath)
++    rc = send.send_batch(
++        live=False, settings=_settings(), path=dbpath, transport=_explode, stop_path=stop_path
++    )
++    out = capsys.readouterr().out
++
++    assert rc == 0
++    assert "DRY RUN" in out
++    assert "Nothing was sent" in out
++    assert db.all_leads(dbpath)[0].status == Status.APPROVED
++    assert db.sent_today_count(dbpath) == 0
++
++
++def test_dry_run_is_the_default_even_with_full_config(dbpath, stop_path):
++    # No `live=` argument at all — the default must be the safe one.
++    _seed(dbpath)
++    rc = send.send_batch(
++        settings=_settings(), path=dbpath, cap=5, transport=_explode, stop_path=stop_path
++    )
++    assert rc == 0
++    assert db.all_leads(dbpath)[0].status == Status.APPROVED
++
++
++# --- all gates pass: it actually sends --------------------------------------
++
++
++def test_all_gates_pass_sends_and_advances_status(dbpath, stop_path, capsys):
++    (lead_id,) = _seed(dbpath)
++    rec = Recorder()
++    rc = send.send_batch(
++        live=True,
++        settings=_settings(),
++        path=dbpath,
++        cap=5,
++        transport=rec,
++        stop_path=stop_path,
++    )
++    out = capsys.readouterr().out
++
++    assert rc == 0
++    assert [e.to for e in rec.sent] == ["n/1@acme.test"]
++    assert "LIVE" in out
++    assert db.all_leads(dbpath)[0].status == Status.SENT
++    assert db.send_state(lead_id, dbpath) == db.SEND_SENT
++    assert db.sent_today_count(dbpath) == 1
++
++
++def test_every_sent_body_carries_the_can_spam_footer(dbpath, stop_path):
++    # GO-LIVE step 3: "The CAN-SPAM footer on every email — assert it in a test."
++    _seed(dbpath, _approved("n/1"), _approved("n/2"), _approved("n/3"))
++    rec = Recorder()
++    send.send_batch(
++        live=True,
++        settings=_settings(),
++        path=dbpath,
++        cap=5,
++        transport=rec,
++        stop_path=stop_path,
++    )
++
++    assert len(rec.sent) == 3
++    for email in rec.sent:
++        assert send.OPT_OUT_LINE in email.body  # opt-out
++        assert "123 Main St, Austin, TX 78701" in email.body  # physical address
++        assert "Kerry Shi" in email.body  # sender identity
++
++
++# --- idempotency: a claim is recorded before the socket opens ---------------
++
++
++def test_second_run_resends_nothing(dbpath, stop_path):
++    _seed(dbpath)
++    first = Recorder()
++    send.send_batch(
++        live=True, settings=_settings(), path=dbpath, cap=5, transport=first, stop_path=stop_path
++    )
++    second = Recorder()
++    send.send_batch(
++        live=True, settings=_settings(), path=dbpath, cap=5, transport=second, stop_path=stop_path
++    )
++
++    assert len(first.sent) == 1
++    assert second.sent == []  # the ledger claim blocks it
++
++
++def test_crash_mid_batch_does_not_resend_on_retry(dbpath, stop_path):
++    # The claim is written BEFORE transmission, so a lead whose send blew up is not
++    # retried: we cannot know whether it reached the wire.
++    (lead_id,) = _seed(dbpath)
++    crashed = Recorder(fail_on="n/1@acme.test")
++    rc = send.send_batch(
++        live=True, settings=_settings(), path=dbpath, cap=5, transport=crashed, stop_path=stop_path
++    )
++
++    assert rc == 1  # transmission errors
++    assert crashed.sent == []
++    assert db.send_state(lead_id, dbpath) == db.SEND_FAILED
++    assert db.all_leads(dbpath)[0].status == Status.APPROVED  # never advanced
++
++    retry = Recorder()
++    send.send_batch(
++        live=True, settings=_settings(), path=dbpath, cap=5, transport=retry, stop_path=stop_path
++    )
++    assert retry.sent == []  # the claim survives the failure
++
++
++def test_claim_send_is_atomic(dbpath):
++    (lead_id,) = _seed(dbpath)
++    assert db.claim_send(lead_id, "a@b.test", "s", dbpath) is True
++    assert db.claim_send(lead_id, "a@b.test", "s", dbpath) is False  # only one winner
++
++
++# --- the cap is counted from what actually went out today -------------------
++
++
++def test_effective_cap_is_min_of_run_cap_and_daily_cap(dbpath, stop_path):
++    _seed(dbpath, *[_approved(f"n/{i}") for i in range(10)])
++    rec = Recorder()
++    send.send_batch(
++        live=True,
++        settings=_settings(daily_send_cap=3),  # config cap is the tighter one
++        path=dbpath,
++        cap=8,
++        transport=rec,
++        stop_path=stop_path,
++    )
++    assert len(rec.sent) == 3
++
++
++def test_run_cap_wins_when_tighter(dbpath, stop_path):
++    _seed(dbpath, *[_approved(f"n/{i}") for i in range(10)])
++    rec = Recorder()
++    send.send_batch(
++        live=True, settings=_settings(daily_send_cap=20), path=dbpath, cap=2, transport=rec,
++        stop_path=stop_path,
++    )
++    assert len(rec.sent) == 2
++
++
++def test_run_cap_is_not_reduced_by_earlier_sends(dbpath, stop_path):
++    # Regression: the formula was min(--cap, daily) - sent_today, which charged prior
++    # sends against BOTH limits. --cap is a distinct per-run cap: with daily=20, one
++    # prior send, and --cap=5, this run may send 5 (not 4). Only the DAILY allowance
++    # is consumed by earlier runs.
++    _seed(dbpath, *[_approved(f"n/{i}") for i in range(10)])
++    first = Recorder()
++    send.send_batch(
++        live=True, settings=_settings(daily_send_cap=20), path=dbpath, cap=1, transport=first,
++        stop_path=stop_path,
++    )
++    assert len(first.sent) == 1
++
++    second = Recorder()
++    send.send_batch(
++        live=True, settings=_settings(daily_send_cap=20), path=dbpath, cap=5, transport=second,
++        stop_path=stop_path,
++    )
++    assert len(second.sent) == 5  # a full per-run cap, not 4
++
++
++def test_daily_allowance_still_bounds_the_run_cap(dbpath, stop_path):
++    # The other side of the same formula: --cap may not exceed what the DAY has left.
++    _seed(dbpath, *[_approved(f"n/{i}") for i in range(10)])
++    first = Recorder()
++    send.send_batch(
++        live=True, settings=_settings(daily_send_cap=4), path=dbpath, cap=3, transport=first,
++        stop_path=stop_path,
++    )
++    assert len(first.sent) == 3
++
++    second = Recorder()
++    send.send_batch(
++        live=True, settings=_settings(daily_send_cap=4), path=dbpath, cap=5, transport=second,
++        stop_path=stop_path,
++    )
++    assert len(second.sent) == 1  # only 1 of the day's 4 remained
++
++
++def test_failed_send_consumes_a_daily_slot(dbpath, stop_path):
++    # Regression: sent_today_count excluded 'failed', but the sender treats a transport
++    # exception as POSSIBLY DELIVERED (that is why it keeps the claim and never retries).
++    # An ambiguous failure must therefore consume the cap too — otherwise a post-delivery
++    # exception frees a slot and the daily cap can be exceeded.
++    _seed(dbpath, *[_approved(f"n/{i}") for i in range(5)])
++    crashed = Recorder(fail_on="n/0@acme.test")
++    send.send_batch(
++        live=True, settings=_settings(daily_send_cap=20), path=dbpath, cap=1, transport=crashed,
++        stop_path=stop_path,
++    )
++
++    assert crashed.sent == []  # nothing confirmed sent...
++    assert db.sent_today_count(dbpath) == 1  # ...but the slot is spent regardless
++
++
++def test_cap_counts_what_was_already_sent_today(dbpath, stop_path):
++    # Two runs in one day must not each get a full cap.
++    _seed(dbpath, *[_approved(f"n/{i}") for i in range(10)])
++    first = Recorder()
++    send.send_batch(
++        live=True, settings=_settings(daily_send_cap=5), path=dbpath, cap=5, transport=first,
++        stop_path=stop_path,
++    )
++    assert len(first.sent) == 5
++
++    second = Recorder()
++    send.send_batch(
++        live=True, settings=_settings(daily_send_cap=5), path=dbpath, cap=5, transport=second,
++        stop_path=stop_path,
++    )
++    assert second.sent == []  # today's allowance is spent
++    assert db.sent_today_count(dbpath) == 5
++
++
++# --- DNC is re-checked at send time -----------------------------------------
++
++
++def test_dnc_registered_after_selection_is_honored(dbpath, stop_path, capsys):
++    # The real race GO-LIVE calls out: both leads are clean at triage, then an
++    # unsubscribe for n/2 lands while n/1 is being sent. Only a re-check at send
++    # time can catch that — selection already passed n/2 through.
++    ids = _seed(dbpath, _approved("n/1"), _approved("n/2"))
++    rec = Recorder()
++
++    def unsubscribe_mid_batch(email):
++        rec(email)  # n/1 goes out first...
++        db.add_dnc("n/2@acme.test", "replied unsubscribe", dbpath)  # ...then n/2 opts out
++
++    rc = send.send_batch(
++        live=True,
++        settings=_settings(),
++        path=dbpath,
++        cap=5,
++        transport=unsubscribe_mid_batch,
++        stop_path=stop_path,
++    )
++    out = capsys.readouterr().out
++
++    assert rc == 0
++    assert [e.to for e in rec.sent] == ["n/1@acme.test"]  # n/2 was spared
++    assert "on do-not-contact as of now" in out
++    assert db.send_state(ids[1], dbpath) is None  # never claimed, never sent
++    assert db.all_leads(dbpath)[1].status == Status.APPROVED
++
++
++def test_dnc_lead_is_never_claimed(dbpath, stop_path):
++    ids = _seed(dbpath, _approved("n/1"), _approved("n/2"))
++    db.add_dnc("n/2@acme.test", "opted out", dbpath)
++    rec = Recorder()
++    send.send_batch(
++        live=True, settings=_settings(), path=dbpath, cap=5, transport=rec, stop_path=stop_path
++    )
++
++    assert [e.to for e in rec.sent] == ["n/1@acme.test"]
++    assert db.send_state(ids[1], dbpath) is None  # never even claimed
++
++
++# --- forward-only status advance --------------------------------------------
++
++
++def test_send_never_demotes_a_lead(dbpath, stop_path):
++    # A WON lead that somehow reaches the batch must not be walked back to SENT.
++    (lead_id,) = _seed(dbpath, _approved("n/1"))
++    db.set_status(lead_id, Status.WON, dbpath)
++    rec = Recorder()
++    send.send_batch(
++        live=True, settings=_settings(), path=dbpath, cap=5, transport=rec, stop_path=stop_path
++    )
++
++    assert rec.sent == []  # not APPROVED, so never selected
++    assert db.all_leads(dbpath)[0].status == Status.WON
++
++
++# --- the kill switch ---------------------------------------------------------
++
++
++def test_kill_switch_engaged_refuses_the_run(dbpath, stop_path, capsys):
++    _seed(dbpath)
++    send.engage_stop("testing", stop_path)
++    rc = send.send_batch(
++        live=True,
++        settings=_settings(),
++        path=dbpath,
++        cap=5,
++        transport=_explode,
++        stop_path=stop_path,
++    )
++    out = capsys.readouterr().out
++
++    assert rc == 2
++    assert "kill switch engaged" in out
++    assert db.all_leads(dbpath)[0].status == Status.APPROVED
++
++
++def test_kill_switch_engaged_mid_batch_stops_the_rest(dbpath, stop_path, capsys):
++    # The switch is re-read before every message, so `stop` in another terminal
++    # halts a campaign already in flight.
++    _seed(dbpath, *[_approved(f"n/{i}") for i in range(5)])
++    rec = Recorder()
++
++    def stop_after_first(email):
++        rec(email)
++        send.engage_stop("pulled mid-batch", stop_path)
++
++    send.send_batch(
++        live=True,
++        settings=_settings(),
++        path=dbpath,
++        cap=5,
++        transport=stop_after_first,
++        stop_path=stop_path,
++    )
++
++    assert len(rec.sent) == 1  # the rest never went out
++    assert "KILL SWITCH engaged — aborting" in capsys.readouterr().out
++
++
++def test_stop_engage_and_release_roundtrip(stop_path):
++    assert send.stop_engaged(stop_path) is False
++    send.engage_stop("why", stop_path)
++    assert send.stop_engaged(stop_path) is True
++    assert send.release_stop(stop_path) is True
++    assert send.stop_engaged(stop_path) is False
++    assert send.release_stop(stop_path) is False  # releasing twice is a no-op

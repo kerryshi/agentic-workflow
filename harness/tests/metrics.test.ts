@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { summarizeMetrics, writeMetrics } from '../src/metrics.js';
+import { renderMetrics, summarizeMetrics, writeMetrics } from '../src/metrics.js';
 
 /**
  * Regressions carried over from scripts/summarize_metrics.ps1 when it was retired
@@ -67,6 +67,15 @@ describe('metrics (Node port of summarize_metrics.ps1)', () => {
     expect(s.failures_open).toBe(1);
     expect(s.regressions_added).toBe(2);
     expect(s.must_fix_failures).toBe(1);
+  });
+
+  it('renders regressions_added as "Regression tests added" — tests, not regressions caused', () => {
+    // Two meanings of "regression" sit adjacent in summary.md (this counter vs the
+    // regression_introduced failure class); the label must say which one this is.
+    failure('CASE-0001', { status: 'fixed', regression_test: 'tests/x.test.ts' });
+    const md = renderMetrics(summarizeMetrics(root));
+    expect(md).toContain('| Regression tests added | 1 |');
+    expect(md).not.toContain('| Regressions added |');
   });
 
   it('averages duration only over runs that actually reached a terminal state', () => {

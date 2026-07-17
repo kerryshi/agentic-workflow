@@ -1,0 +1,362 @@
+{
+  "schema_version": 2,
+  "review_round": 2,
+  "run_id": "2026-07-15_2209_build-go-live-step-3-of-the-outreach-webmaster-p",
+  "template": "feature",
+  "repo": "C:\\Users\\PC\\Desktop\\Sandbox Testing\\outreach webmaster",
+  "task": "Build GO-LIVE step 3 of the outreach-webmaster pipeline, the sender, as code that cannot send by default: it consumes approved drafts from the existing review/export flow and sends via the SMTP_*/SENDER_* env config, but must refuse to run live unless ALL of an explicit --live flag, complete env config, and a per-run send cap are present, defaulting to a dry-run that only prints what it would send; follow docs/GO-LIVE.md and the repo's standing hard no-send gates and test conventions, and never send any email in any test or verification step.",
+  "answers": "# Grill questions\n\nAnswer inline under each question, then resume the run.\n\n1. Is the 'per-run send cap' a new required CLI argument (e.g. --cap N) distinct from config.yaml's daily_send_cap that must be explicitly passed for any live run, and should a live send use the minimum of the per-run cap and daily_send_cap? Or does it just mean the existing daily_send_cap?\n   A: New REQUIRED --cap N argument, distinct from daily_send_cap. Any live run must explicitly pass it; effective cap = min(--cap, daily_send_cap). Forgetting the flag means no send. [Kerry, 2026-07-16]\n\n2. For the live gate, does 'complete env config' require the full SMTP transport set (SMTP_HOST/PORT/USER/PASSWORD plus SENDER_EMAIL/NAME/ADDRESS), or should it keep the existing missing_for_live() 3-variable check (SMTP_HOST, SENDER_EMAIL, SENDER_ADDRESS)?\n   A: Full SMTP transport set required: SMTP_HOST/PORT/USER/PASSWORD plus SENDER_EMAIL/NAME/ADDRESS. The gate must prove the send can actually work; a partial pass that crashes at send time is a weaker gate than no gate. [Kerry, 2026-07-16]\n\n3. Should this build implement the full GO-LIVE Step 3 checklist — send-time DNC re-check, idempotency (atomic record-before-send so a crash can't re-send), cap counted from what was actually sent today, forward-only status advance to 'sent', footer test, and a kill-switch command — or is the target minimal (SMTP send + the three gates + dry-run default) with those deferred?\n   A: Full checklist: send-time DNC re-check, atomic record-before-send idempotency, cap counted from actually-sent-today, forward-only status advance, footer test, and kill-switch command. This code touches real inboxes — every deferred item is a real-world incident class. [Kerry, 2026-07-16]\n\n4. When --live is passed but a gate fails (incomplete env or missing per-run cap), should the sender keep the current behavior of printing the guard, showing the dry-run preview, and returning exit 2, or hard-error without previewing?\n   A: Keep current behavior: print which gate failed, show the dry-run preview, return exit 2. The preview is send-free and diagnostic. [Kerry, 2026-07-16]\n",
+  "builder": "claude",
+  "reviewer": "codex",
+  "model": null,
+  "skip_permissions": true,
+  "isolated": true,
+  "agent_verify": false,
+  "risk_level": "medium",
+  "full_rereview": false,
+  "stage_budget_usd": null,
+  "current_stage": 8,
+  "validation_commands": [
+    ".venv/Scripts/ruff check .",
+    ".venv/Scripts/python -m pytest -q",
+    ".venv/Scripts/python -m pytest tests/test_send.py tests/test_send_live.py -q",
+    ".venv/Scripts/python -m outreach_webmaster send --help | grep -q -- '--cap'",
+    ".venv/Scripts/python -m outreach_webmaster stop --help > /dev/null"
+  ],
+  "files_changed": [
+    "src/outreach_webmaster/db.py",
+    "src/outreach_webmaster/outreach/send.py",
+    "src/outreach_webmaster/cli.py",
+    "tests/conftest.py",
+    "tests/test_send.py",
+    "tests/test_send_live.py",
+    "docs/GO-LIVE.md",
+    "AGENTS.md",
+    "src/outreach_webmaster/config.py",
+    "tests/test_config.py"
+  ],
+  "fix_cycles": 1,
+  "last_must_fix": "- src/outreach_webmaster/db.py: At lines 620–639, sent_today_count() excludes SEND_FAILED even though the sender explicitly treats a transport exception as possibly delivered. A post-delivery exception can therefore free a daily slot and permit the daily cap to be exceeded later. Ambiguous failed claims must consume the cap.\n- src/outreach_webmaster/outreach/send.py: At lines 253–261, the cap formula subtracts prior sends from both limits: min(--cap, daily_send_cap) - sent_today. Because --cap is a distinct per-run cap, it should be min(--cap, daily_send_cap - sent_today). For example, daily=20, --cap=5, and one prior send currently permits 4 rather than 5.\n- src/outreach_webmaster/config.py: At lines 129 and 143, SMTP_PORT defaults to 587 before the live gate, so omitting SMTP_PORT still passes despite Kerry explicitly requiring the full env set. A malformed port also raises ValueError before live_blockers(), preventing the required refusal, preview, and exit 2.\n- src/outreach_webmaster/outreach/send.py: At lines 175–185, complete-config validation uses raw truthiness. Whitespace-only SMTP/SENDER values pass; notably, a whitespace SENDER_ADDRESS authorizes live sending with no meaningful physical address in the footer. Values must be stripped and validated before satisfying the gate.",
+  "stages": [
+    {
+      "name": "grill",
+      "status": "done",
+      "attempts": [
+        {
+          "status": "parked",
+          "agent": "claude",
+          "model": null,
+          "resumed": false,
+          "tokens": {
+            "input": 4,
+            "output": 3727,
+            "cache_read": 47926,
+            "cache_creation": 13926
+          },
+          "cost_usd": 0.258414,
+          "duration_ms": 51785,
+          "num_turns": 3,
+          "started_at": "2026-07-15T22:09:55-04:00",
+          "ended_at": "2026-07-15T22:10:48-04:00",
+          "session_id": "95170be0-8076-4c55-aab7-2d48e170e166",
+          "park_reason": "awaiting grill answers"
+        }
+      ],
+      "artifacts": [
+        "questions.md"
+      ],
+      "agent": "claude",
+      "model": null,
+      "started_at": "2026-07-15T22:09:55-04:00",
+      "tokens": {
+        "input": 4,
+        "output": 3727,
+        "cache_read": 47926,
+        "cache_creation": 13926
+      },
+      "cost_usd": 0.258414,
+      "duration_ms": 51785,
+      "num_turns": 3,
+      "ended_at": "2026-07-16T20:38:29-04:00"
+    },
+    {
+      "name": "plan",
+      "status": "done",
+      "attempts": [
+        {
+          "status": "done",
+          "agent": "claude",
+          "model": null,
+          "resumed": true,
+          "tokens": {
+            "input": 7,
+            "output": 12896,
+            "cache_read": 177047,
+            "cache_creation": 43801
+          },
+          "cost_usd": 0.8489684999999999,
+          "duration_ms": 163197,
+          "num_turns": 7,
+          "started_at": "2026-07-16T20:38:29-04:00",
+          "ended_at": "2026-07-16T20:41:13-04:00",
+          "session_id": "95170be0-8076-4c55-aab7-2d48e170e166"
+        }
+      ],
+      "artifacts": [
+        "plan.md"
+      ],
+      "agent": "claude",
+      "model": null,
+      "started_at": "2026-07-16T20:38:29-04:00",
+      "tokens": {
+        "input": 7,
+        "output": 12896,
+        "cache_read": 177047,
+        "cache_creation": 43801
+      },
+      "cost_usd": 0.8489684999999999,
+      "duration_ms": 163197,
+      "num_turns": 7,
+      "ended_at": "2026-07-16T20:41:13-04:00"
+    },
+    {
+      "name": "approval",
+      "status": "done",
+      "attempts": [],
+      "artifacts": [],
+      "ended_at": "2026-07-16T20:42:03-04:00"
+    },
+    {
+      "name": "build",
+      "status": "done",
+      "attempts": [
+        {
+          "status": "done",
+          "agent": "claude",
+          "model": null,
+          "resumed": true,
+          "tokens": {
+            "input": 80,
+            "output": 37611,
+            "cache_read": 4651646,
+            "cache_creation": 64115
+          },
+          "cost_usd": 3.9076479999999996,
+          "duration_ms": 520770,
+          "num_turns": 44,
+          "started_at": "2026-07-16T20:42:03-04:00",
+          "ended_at": "2026-07-16T20:50:46-04:00",
+          "session_id": "95170be0-8076-4c55-aab7-2d48e170e166"
+        }
+      ],
+      "artifacts": [],
+      "agent": "claude",
+      "model": null,
+      "started_at": "2026-07-16T20:42:03-04:00",
+      "tokens": {
+        "input": 80,
+        "output": 37611,
+        "cache_read": 4651646,
+        "cache_creation": 64115
+      },
+      "cost_usd": 3.9076479999999996,
+      "duration_ms": 520770,
+      "num_turns": 44,
+      "ended_at": "2026-07-16T20:50:46-04:00"
+    },
+    {
+      "name": "review",
+      "status": "done",
+      "attempts": [
+        {
+          "status": "done",
+          "agent": "codex",
+          "model": null,
+          "resumed": false,
+          "tokens": {
+            "input": 1332371,
+            "output": 14880,
+            "cache_read": 1228800
+          },
+          "cost_usd": 0,
+          "duration_ms": 469821,
+          "num_turns": 1,
+          "started_at": "2026-07-16T20:50:46-04:00",
+          "ended_at": "2026-07-16T20:58:36-04:00",
+          "session_id": "019f6d8d-f264-7f31-a95e-d52e479af4b8",
+          "review": {
+            "verdict": "must_fix",
+            "must_fix": [
+              {
+                "file": "src/outreach_webmaster/db.py",
+                "issue": "At lines 620–639, sent_today_count() excludes SEND_FAILED even though the sender explicitly treats a transport exception as possibly delivered. A post-delivery exception can therefore free a daily slot and permit the daily cap to be exceeded later. Ambiguous failed claims must consume the cap."
+              },
+              {
+                "file": "src/outreach_webmaster/outreach/send.py",
+                "issue": "At lines 253–261, the cap formula subtracts prior sends from both limits: min(--cap, daily_send_cap) - sent_today. Because --cap is a distinct per-run cap, it should be min(--cap, daily_send_cap - sent_today). For example, daily=20, --cap=5, and one prior send currently permits 4 rather than 5."
+              },
+              {
+                "file": "src/outreach_webmaster/config.py",
+                "issue": "At lines 129 and 143, SMTP_PORT defaults to 587 before the live gate, so omitting SMTP_PORT still passes despite Kerry explicitly requiring the full env set. A malformed port also raises ValueError before live_blockers(), preventing the required refusal, preview, and exit 2."
+              },
+              {
+                "file": "src/outreach_webmaster/outreach/send.py",
+                "issue": "At lines 175–185, complete-config validation uses raw truthiness. Whitespace-only SMTP/SENDER values pass; notably, a whitespace SENDER_ADDRESS authorizes live sending with no meaningful physical address in the footer. Values must be stripped and validated before satisfying the gate."
+              }
+            ],
+            "should_fix": [
+              {
+                "file": "src/outreach_webmaster/outreach/send.py",
+                "issue": "At lines 382–387, refused/dry-run output always reports daily_send_cap even when selection used --cap and today's remaining allowance. This makes the diagnostic preview report the wrong cap."
+              },
+              {
+                "file": "src/outreach_webmaster/config.py",
+                "issue": "The SendConfig docstring still says --live is an unconditional guarded refusal; config.yaml and tests/test_send.py contain similar stale descriptions after the sender was implemented."
+              }
+            ],
+            "round": 1
+          }
+        }
+      ],
+      "artifacts": [
+        "review-1.diff",
+        "review.md",
+        "review-1.md"
+      ],
+      "agent": "codex",
+      "model": null,
+      "started_at": "2026-07-16T20:50:46-04:00",
+      "tokens": {
+        "input": 1332371,
+        "output": 14880,
+        "cache_read": 1228800
+      },
+      "cost_usd": 0,
+      "duration_ms": 469821,
+      "num_turns": 1,
+      "ended_at": "2026-07-16T20:58:36-04:00"
+    },
+    {
+      "name": "build",
+      "variant": "fix",
+      "status": "done",
+      "artifacts": [],
+      "agent": "claude",
+      "model": null,
+      "started_at": "2026-07-16T20:58:36-04:00",
+      "attempts": [
+        {
+          "status": "done",
+          "agent": "claude",
+          "model": null,
+          "resumed": true,
+          "tokens": {
+            "input": 49,
+            "output": 18670,
+            "cache_read": 3999842,
+            "cache_creation": 142411
+          },
+          "cost_usd": 3.891026,
+          "duration_ms": 303968,
+          "num_turns": 28,
+          "started_at": "2026-07-16T20:58:36-04:00",
+          "ended_at": "2026-07-16T21:03:43-04:00",
+          "session_id": "95170be0-8076-4c55-aab7-2d48e170e166"
+        }
+      ],
+      "tokens": {
+        "input": 49,
+        "output": 18670,
+        "cache_read": 3999842,
+        "cache_creation": 142411
+      },
+      "cost_usd": 3.891026,
+      "duration_ms": 303968,
+      "num_turns": 28,
+      "ended_at": "2026-07-16T21:03:43-04:00"
+    },
+    {
+      "name": "review",
+      "status": "done",
+      "artifacts": [
+        "review-2.diff",
+        "review.md",
+        "review-2.md"
+      ],
+      "agent": "codex",
+      "model": null,
+      "started_at": "2026-07-16T21:03:43-04:00",
+      "attempts": [
+        {
+          "status": "done",
+          "agent": "codex",
+          "model": null,
+          "resumed": false,
+          "tokens": {
+            "input": 634016,
+            "output": 8681,
+            "cache_read": 565760
+          },
+          "cost_usd": 0,
+          "duration_ms": 240622,
+          "num_turns": 1,
+          "started_at": "2026-07-16T21:03:43-04:00",
+          "ended_at": "2026-07-16T21:07:44-04:00",
+          "session_id": "019f6d99-ccd0-7803-a395-42b29f8bae4a",
+          "review": {
+            "verdict": "approve",
+            "must_fix": [],
+            "should_fix": [
+              {
+                "file": "src/outreach_webmaster/outreach/send.py",
+                "issue": "_effective_cap() returns a negative value for an invalid negative --cap. The refused dry-run then uses negative slicing, previewing all but the last lead while reporting the daily cap. Normalize invalid caps for diagnostic previews."
+              }
+            ],
+            "round": 2
+          }
+        }
+      ],
+      "tokens": {
+        "input": 634016,
+        "output": 8681,
+        "cache_read": 565760
+      },
+      "cost_usd": 0,
+      "duration_ms": 240622,
+      "num_turns": 1,
+      "ended_at": "2026-07-16T21:07:44-04:00"
+    },
+    {
+      "name": "verify",
+      "status": "done",
+      "attempts": [
+        {
+          "status": "done",
+          "agent": "harness",
+          "tokens": {
+            "input": 0,
+            "output": 0
+          },
+          "cost_usd": 0,
+          "num_turns": 0,
+          "started_at": "2026-07-16T21:07:44-04:00",
+          "duration_ms": 12053,
+          "ended_at": "2026-07-16T21:07:56-04:00"
+        }
+      ],
+      "artifacts": [
+        "evidence.md"
+      ],
+      "started_at": "2026-07-16T21:07:44-04:00",
+      "tokens": {
+        "input": 0,
+        "output": 0
+      },
+      "cost_usd": 0,
+      "duration_ms": 12053,
+      "num_turns": 0,
+      "ended_at": "2026-07-16T21:07:56-04:00"
+    }
+  ],
+  "builder_session_id": "95170be0-8076-4c55-aab7-2d48e170e166"
+}

@@ -1,0 +1,17 @@
+{
+  "case_id": "CASE-0022",
+  "created_at": "2026-07-15T15:55:21-04:00",
+  "resolved_at": "2026-07-15T17:39:29-04:00",
+  "machine": "windows",
+  "linked_run": "2026-07-15_1519_add-a-catering-large-order-faq-topic-to-the-chin",
+  "repo": "C:/Users/PC/agentic-workflow",
+  "repo_name": "agentic-workflow",
+  "commit_or_branch": "master",
+  "summary": "native verify executes validation commands under bash, but the plan stage authors Windows backslash paths - backslashes stripped, all commands exit 127",
+  "failure_class": "environment_platform_issue",
+  "severity": "should_fix",
+  "repro_command": "plan a run on a Windows repo whose venv commands are written as .venv\\Scripts\\python; approve through to native verify",
+  "status": "fixed",
+  "prevention_layer": "plan-stage brief should state that validation commands execute under bash on Windows (forward slashes, echo for piped input), or native verify should normalize backslash paths before exec; same class as the brain's claude-code-hooks-bash-backslash lesson - third sighting",
+  "regression_test": "harness/tests/verify.test.ts: 'runs a plan-authored backslash path after normalizing it for bash', 'normalizes only path-shaped tokens that resolve in the repo', 'normalizes backslash paths and says so in evidence (CASE-0022)'; harness/tests/briefs.test.ts: 'plan brief validation-command rules (CASE-0022)'"
+}

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { AgentDriver, DriveOpts, StageBrief, StageResult } from '../src/adapters/types.js';
 import { Engine } from '../src/engine.js';
 import { readJson } from '../src/fsx.js';
-import { nativeVerify } from '../src/verify.js';
+import { nativeVerify, normalizeCommandForBash } from '../src/verify.js';
 import type { Pipeline } from '../src/types.js';
 
 let root: string;
@@ -43,6 +43,34 @@ describe('nativeVerify executor', () => {
   it('zero commands can never pass (vacuous PASS impossible by construction)', async () => {
     const res = await nativeVerify(repo, [], []);
     expect(res.passed).toBe(false);
+  });
+
+  // CASE-0022: plans authored on Windows write backslash paths; bash -c strips
+  // bare backslashes (.venvScriptspython: command not found, exit 127).
+  it('runs a plan-authored backslash path after normalizing it for bash', async () => {
+    mkdirSync(join(repo, 'scripts'), { recursive: true });
+    writeFileSync(join(repo, 'scripts', 'probe.cjs'), `console.log('probe ok')`);
+    const res = await nativeVerify(repo, ['node scripts\\probe.cjs'], []);
+    expect(res.passed).toBe(true);
+    expect(res.results[0]!.output_tail).toContain('probe ok');
+    expect(res.results[0]!.command).toBe('node scripts\\probe.cjs'); // original preserved
+    expect(res.results[0]!.normalized_command).toBe('node scripts/probe.cjs');
+  });
+
+  it('normalizes only path-shaped tokens that fully resolve in the repo', () => {
+    mkdirSync(join(repo, '.venv', 'Scripts'), { recursive: true });
+    writeFileSync(join(repo, '.venv', 'Scripts', 'python.exe'), '');
+    expect(normalizeCommandForBash('.venv\\Scripts\\python -m pytest -q', repo)).toBe(
+      '.venv/Scripts/python -m pytest -q',
+    );
+    // regex escapes stay untouched EVEN when the first segment is a real dir:
+    // only a fully-resolving path earns a rewrite (reviewer finding, 2026-07-15)
+    mkdirSync(join(repo, 'foo'), { recursive: true });
+    expect(normalizeCommandForBash('grep -c foo\\.py src', repo)).toBe('grep -c foo\\.py src');
+    // quoted tokens are never rewritten
+    expect(normalizeCommandForBash(`grep '.venv\\Scripts' notes.md`, repo)).toBe(
+      `grep '.venv\\Scripts' notes.md`,
+    );
   });
 
   it('flags working-tree paths the build never reported', async () => {
@@ -144,5 +172,14 @@ describe('native verify is the default verify stage', () => {
     const { outcome } = await runDefaultFeature([]);
     expect(outcome.state).toBe('parked');
     expect(outcome.message).toContain('no validation commands');
+  });
+
+  it('normalizes backslash paths and says so in evidence (CASE-0022)', async () => {
+    mkdirSync(join(repo, 'scripts'), { recursive: true });
+    writeFileSync(join(repo, 'scripts', 'probe.cjs'), `console.log('probe ok')`);
+    const { outcome, runId } = await runDefaultFeature(['node scripts\\probe.cjs']);
+    expect(outcome.state).toBe('completed');
+    const evidence = readFileSync(join(root, 'runs', runId, 'evidence.md'), 'utf8');
+    expect(evidence).toContain('ran as `node scripts/probe.cjs`');
   });
 });

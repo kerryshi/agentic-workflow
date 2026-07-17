@@ -1,0 +1,1 @@
+{"at":"2026-07-16T21:05:19-04:00","command":"node e2e.js (Playwright, system Chrome, headed WebGPU)","result":"round 1: 3/4 (stub judge escalates everything -> gate card evidence); round 2: 10/10 full arc; round 3: real llama3.2 verdict allow in 1.1s","note":"Screenshots, audit-export.json, results.json, console.log in runs/<id>/evidence/"}

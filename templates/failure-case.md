@@ -1,6 +1,6 @@
 # Failure Case
 
-<!-- Human reference for a hand-written case. capture_failure.ps1 generates the multi-file
+<!-- Human reference for a hand-written case. `harness case new` generates the multi-file
      failures/CASE-####_slug/ folder (failure.json + prompt/expected/actual/repro/evidence/
      classification/fix/regression.md); use this only when writing one by hand. -->
 
@@ -20,7 +20,7 @@
 ## Reproduction
 Command or manual steps:
 
-```powershell
+```
 
 ```
 

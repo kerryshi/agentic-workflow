@@ -1,0 +1,47 @@
+{
+  "run_id": "2026-07-15_2209_build-go-live-step-3-of-the-outreach-webmaster-p",
+  "created_at": "2026-07-15T22:09:55-04:00",
+  "completed_at": "2026-07-16T21:07:56-04:00",
+  "machine": "windows",
+  "repo": "C:/Users/PC/Desktop/Sandbox Testing/outreach webmaster",
+  "repo_name": "outreach webmaster",
+  "branch": "master",
+  "worktree": null,
+  "objective": "Build GO-LIVE step 3 of the outreach-webmaster pipeline, the sender, as code that cannot send by default: it consumes approved drafts from the existing review/export flow and sends via the SMTP_*/SENDER_* env config, but must refuse to run live unless ALL of an explicit --live flag, complete env config, and a per-run send cap are present, defaulting to a dry-run that only prints what it would send; follow docs/GO-LIVE.md and the repo's standing hard no-send gates and test conventions, and never send any email in any test or verification step.",
+  "user_prompt_summary": "",
+  "status_path": "",
+  "risk_level": "medium",
+  "agent": {
+    "agent_id": "claude-code",
+    "agent_role": "executor",
+    "surface": "harness",
+    "model": null,
+    "adapter_version": "v2-harness"
+  },
+  "status": "complete",
+  "validation_plan": [
+    ".venv/Scripts/ruff check .",
+    ".venv/Scripts/python -m pytest -q",
+    ".venv/Scripts/python -m pytest tests/test_send.py tests/test_send_live.py -q",
+    ".venv/Scripts/python -m outreach_webmaster send --help | grep -q -- '--cap'",
+    ".venv/Scripts/python -m outreach_webmaster stop --help > /dev/null"
+  ],
+  "files_changed": [
+    "src/outreach_webmaster/db.py",
+    "src/outreach_webmaster/outreach/send.py",
+    "src/outreach_webmaster/cli.py",
+    "tests/conftest.py",
+    "tests/test_send.py",
+    "tests/test_send_live.py",
+    "docs/GO-LIVE.md",
+    "AGENTS.md",
+    "src/outreach_webmaster/config.py",
+    "tests/test_config.py"
+  ],
+  "linked_failures": [],
+  "evidence_links": [
+    "evidence.md"
+  ],
+  "reviewer_result": "review stage: see review.md",
+  "final_outcome": "pipeline feature completed (8 stages)"
+}

@@ -1,0 +1,17 @@
+{
+  "case_id": "CASE-0021",
+  "created_at": "2026-07-15T15:28:10-04:00",
+  "resolved_at": "2026-07-15T17:39:29-04:00",
+  "machine": "windows",
+  "linked_run": "2026-07-15_1521_add-session-resume-to-the-harness-codex-adapter",
+  "repo": "C:/Users/PC/agentic-workflow",
+  "repo_name": "agentic-workflow",
+  "commit_or_branch": "master",
+  "summary": "grill stage burns its 12-turn cap exploring large/self-referential repos instead of asking questions (error_max_turns, $0.63 spent, no questions produced)",
+  "failure_class": "bad_context",
+  "severity": "should_fix",
+  "repro_command": "node harness/dist/cli.js run '<task naming files in a large repo without anchors>' --repo C:/Users/PC/agentic-workflow",
+  "status": "fixed",
+  "prevention_layer": "grill brief should forbid deep exploration (ask, don't read) or the engine should pass a smaller exploration allowance; workaround proven: enrich pipeline.json task with exact file anchors, then resume",
+  "regression_test": "harness/tests/briefs.test.ts: 'directs the agent to ask instead of exploring the repo' (old Skim-the-repository invitation must be gone), 'keeps the grill turn cap small' (cap <= 6)"
+}

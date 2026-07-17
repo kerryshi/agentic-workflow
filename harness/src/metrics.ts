@@ -152,7 +152,7 @@ export function renderMetrics(s: MetricsSummary): string {
     `| Won't-fix failures | ${s.failures_wont_fix} |`,
     `| Must-fix failures | ${s.must_fix_failures} |`,
     `| Escaped bugs | ${s.escaped_bugs} |`,
-    `| Regressions added | ${s.regressions_added} |`,
+    `| Regression tests added | ${s.regressions_added} |`,
     '',
     '## Failure Classes',
     '',

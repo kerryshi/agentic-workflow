@@ -1,0 +1,52 @@
+[
+  {
+    "step": "webgpu-available",
+    "ok": true,
+    "detail": "navigator.gpu = true"
+  },
+  {
+    "step": "ollama-judge-test",
+    "ok": true,
+    "detail": "judgeStatus: escalate - judge unreachable (signal timed out); failing safe to human (90.0s)"
+  },
+  {
+    "step": "model-loaded",
+    "ok": true,
+    "detail": "Qwen2.5-1.5B-Instruct-q4f16_1-MLC ready"
+  },
+  {
+    "step": "demo1-jseval-memory",
+    "ok": true,
+    "detail": "completed; human gates hit: 2 (real judge ruling instead of stub escalate)"
+  },
+  {
+    "step": "demo2-fetch-human-gate",
+    "ok": true,
+    "detail": "human gates hit: 5 (allowlisted fetch must gate at least once)"
+  },
+  {
+    "step": "demo3-blocked-domain-denied",
+    "ok": true,
+    "detail": "deny verdict in trace: true; gates: 0"
+  },
+  {
+    "step": "demo4-time-memory",
+    "ok": true,
+    "detail": "completed"
+  },
+  {
+    "step": "policy-live-edit",
+    "ok": true,
+    "detail": "policy rev 1 -> 2"
+  },
+  {
+    "step": "audit-export",
+    "ok": true,
+    "detail": "exported 36 audit entries (badge: 36 entries)"
+  },
+  {
+    "step": "replay",
+    "ok": true,
+    "detail": "replay output: Tier-1 replay of 36 logged proposals against policy rev 2 - 0 verdict(s) changed\na1 js_eval: review -> reviewa2 memory_set: review -> reviewa3 fetch_url: allow -> allowa4 fetch_url: allow -> allowa5 f"
+  }
+]

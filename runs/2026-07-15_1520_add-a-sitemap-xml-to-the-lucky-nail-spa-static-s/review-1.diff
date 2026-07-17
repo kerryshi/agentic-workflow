@@ -1,0 +1,27 @@
+diff --git a/robots.txt b/robots.txt
+index eb05362..6db132e 100644
+--- a/robots.txt
++++ b/robots.txt
+@@ -1,2 +1,4 @@
+ User-agent: *
+ Disallow:
++
++Sitemap: https://www.luckynailspadurham.com/sitemap.xml
+\ No newline at end of file
+diff --git a/sitemap.xml b/sitemap.xml
+new file mode 100644
+index 0000000..33a41a1
+--- /dev/null
++++ b/sitemap.xml
+@@ -0,0 +1,11 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
++  <url>
++    <loc>https://www.luckynailspadurham.com/</loc>
++    <lastmod>2026-07-15</lastmod>
++  </url>
++  <url>
++    <loc>https://www.luckynailspadurham.com/services.html</loc>
++    <lastmod>2026-07-15</lastmod>
++  </url>
++</urlset>

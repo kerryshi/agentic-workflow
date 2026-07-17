@@ -1,0 +1,626 @@
+diff --git a/STATUS.md b/STATUS.md
+index c579098..92d3a1f 100644
+--- a/STATUS.md
++++ b/STATUS.md
+@@ -1,6 +1,35 @@
+ # STATUS — ai-news-spider
+ 
+-_Last updated: 2026-07-07 · **both hardening waves COMMITTED + PUSHED** (`c4d06c5` audit fixes 2026-07-05; `a164b2f` redirect-SSRF guard 2026-07-06, reviewed clean, 109 tests green) · **Jetson still runs pre-hardening code — deploy blocked ONLY on `JETSON_HOST`** · caveat: the 2026-07-07 attribution history-rewrite changed all commit hashes; hashes in older sections below are pre-rewrite._
++_Last updated: 2026-07-16 · **collect-staleness health check landed** (working tree, uncommitted) · both hardening waves COMMITTED + PUSHED (`c4d06c5` audit fixes 2026-07-05; `a164b2f` redirect-SSRF guard 2026-07-06, reviewed clean) · **Jetson still runs pre-hardening code — deploy blocked ONLY on `JETSON_HOST`** · caveat: the 2026-07-07 attribution history-rewrite changed all commit hashes; hashes in older sections below are pre-rewrite._
++
++## This session (2026-07-16) — collect-staleness health check (working tree)
++The deferred "warn if last collect > 25 min ago" check, promoted to next-up by the
++2026-07-05 ICS outage. The verdict lives in the **engine** (`digest.collect_health`,
++`STALE_AFTER_MINUTES = 25` — one `*/20` cron cycle + slack) reading the corpus's existing
++`Store.health()['last_collect']`; `top --json` now ships it as a `health` field, and the
++markdown digest prepends a 🚨 banner. Two surfaces render that one verdict — the digest
++banner and a warning-state status-bar badge (`statusBarItem.warningBackground`); `status`
++reuses it for a `⚠ STALE` marker, so no surface can drift on what "stale" means.
++- **The banner renders on the *empty* digest too** — an emptied ranking window IS the
++  outage symptom, so a banner after the "no items matched" early return would have
++  missed the exact failure it exists to catch. Pinned by a test.
++- **Unknown = stale.** Unreachable Jetson, unparseable output, or an engine too old to
++  send `health` all warn on **both** surfaces: the badge *and* the digest. The extension
++  prepends the banner itself only where the engine has no verdict to give (idempotent via
++  a shared `STALE_MARKER`, so failed refreshes can't stack banners). A badge-only warning
++  was a review finding — the digest is the surface that actually gets read, and a normal-
++  looking digest under a warning badge is the 2026-07-05 split exactly.
++  ⚠ **This means the badge warns now, before the deploy** — truthful today (SSH is down,
++  collection isn't running), but it is visible-now, not dormant.
++- **A failed collect/fetch never clears the warning.** `collectNow`'s error path used to
++  call `idleStatus()`, which erased an established stale badge — a failed collect is
++  evidence *for* staleness, not a reason to go quiet. (Review finding.) The one path that
++  deliberately does *not* warn: `collectNow` exit 0 with an unreadable stats line — the
++  collect itself succeeded, so warning there would be a false alarm.
++- 17 tests in `tests/test_collect_health.py`. Extension rebuilt locally via
++  `npm run compile` (`extension/out/` is gitignored — reload VS Code to pick it up).
++- Not touched: the Jetson deploy path (`JETSON_HOST`), `render_html`/`serve.py` (the
++  markdown + badge were the named surfaces — HTML banner is a follow-up).
+ 
+ ## Security audit + hardening (2026-07-02) — COMMITTED `c4d06c5`, PUSHED 2026-07-05
+ A cross-project security audit (multi-agent, adversarially verified — 8 confirmed of 39
+@@ -57,8 +86,10 @@ an incident: **the collect cron had been failing silently for ~74.5h** — the d
+ (Wi-Fi → Ethernet) dropped, the Jetson's eth0 lost its 192.168.137.x lease, and every
+ source fetch died with "Name or service not known". The ranked window (72h) emptied out,
+ which is why digests "looked quiet". Exactly the failure mode the new digest warning +
+-`judge_failures` logging were built to surface — and it bumps the deferred **extension
+-health-check command** ("warn if last collect > 25 min ago") from nice-to-have to next-up.
++`judge_failures` logging were built to surface — and it bumped the deferred **collect
++staleness check** ("warn if last collect > 25 min ago") from nice-to-have to next-up.
++**Built 2026-07-16** — see the top section. (It landed as a passive warning on every
++refresh, not the standalone command this line originally imagined.)
+ 
+ **Recovery**: run `scripts/jetson-ics.ps1` **elevated** (replaces the temp-cleaned
+ `%TEMP%\jetics.ps1`; re-enables ICS Wi-Fi→Ethernet + reasserts reboot persistence). Once
+diff --git a/engine/cli.py b/engine/cli.py
+index d161e26..ad03e24 100644
+--- a/engine/cli.py
++++ b/engine/cli.py
+@@ -18,7 +18,7 @@ from datetime import datetime, timezone
+ from pathlib import Path
+ 
+ from .config import Config
+-from .digest import render_html, render_markdown, write
++from .digest import collect_health, render_html, render_markdown, write
+ from .pipeline import collect as run_collect, rank as run_rank, attach_summaries
+ from .store import Store
+ 
+@@ -41,18 +41,30 @@ def _progress(msg: str) -> None:
+     print(msg, file=sys.stderr, flush=True)
+ 
+ 
++def _collect_health(cfg: Config) -> dict:
++    """Read the corpus's last-collect stamp and turn it into a staleness verdict."""
++    store = Store(cfg.db_path)
++    try:
++        return collect_health(store.health()["last_collect"])
++    finally:
++        store.close()
++
++
+ def _emit_top(cfg: Config, query, since_hours, n, as_json: bool, html_path: Path | None = None) -> None:
+     items = run_rank(cfg, query=query, since_hours=since_hours, n=n)
+     items = attach_summaries(cfg, items, _progress)  # lazy, cached readable summaries
++    health = _collect_health(cfg)
+     bits = []
+     if query:
+         bits.append(f"topic: {query}")
+     if since_hours:
+         bits.append(f"last {since_hours:g}h")
+     subtitle = " · ".join(bits)
+-    md = render_markdown(items, subtitle)
+-    md_path, _ = write(items, cfg.digest_dir)
++    md = render_markdown(items, subtitle, health=health)
++    md_path, _ = write(items, cfg.digest_dir, health=health)
+     _progress(f"✓ ranked {len(items)} items → {md_path}")
++    if health["stale"]:
++        _progress(f"⚠ collection looks stale ({health['reason']}) — see the digest banner.")
+ 
+     if html_path is not None:
+         html_path.parent.mkdir(parents=True, exist_ok=True)
+@@ -61,7 +73,7 @@ def _emit_top(cfg: Config, query, since_hours, n, as_json: bool, html_path: Path
+ 
+     if as_json:
+         print(json.dumps(
+-            {"digest_md": str(md_path), "digest_markdown": md,
++            {"digest_md": str(md_path), "digest_markdown": md, "health": health,
+              "items": [it.to_dict() for it in items]},
+             indent=2, default=str,
+         ))
+@@ -112,10 +124,14 @@ def main(argv: list[str] | None = None) -> int:
+             mins = (datetime.now(timezone.utc) - datetime.fromisoformat(iso)).total_seconds() / 60
+             return f"{mins:.0f} min ago" if mins < 120 else f"{mins/60:.1f} h ago"
+ 
++        # Same verdict the digest banner and the extension badge render — one
++        # threshold, so the surfaces can never disagree about what "stale" means.
++        health = collect_health(h["last_collect"])
++        mark = " ⚠ STALE" if health["stale"] else ""
+         size_mb = os.path.getsize(cfg.db_path) / 1e6 if os.path.exists(cfg.db_path) else 0.0
+         print(f"corpus:       {h['items']} items ({h['enriched']} enriched), {h['snapshots']} snapshots")
+         print(f"db size:      {size_mb:.1f} MB")
+-        print(f"last collect: {_ago(h['last_collect'])}")
++        print(f"last collect: {_ago(h['last_collect'])}{mark}")
+         print(f"newest item:  {_ago(h['newest_item'])}")
+         print("by source:    " + ", ".join(f"{k} {v}" for k, v in sorted(h["by_source"].items())))
+         return 0
+diff --git a/engine/digest.py b/engine/digest.py
+index fd002ab..e7f31ab 100644
+--- a/engine/digest.py
++++ b/engine/digest.py
+@@ -26,6 +26,64 @@ _EMOJI = {
+     "lobsters": "🦞",
+ }
+ 
++# The Jetson collects on a */20 cron, so one missed cycle + 5 min of slack = 25 min.
++# Older than this means collection has stopped and the digest is a frozen snapshot.
++# This exists because of the 2026-07-05 ICS outage: eth0 lost its lease, every source
++# fetch died with "Name or service not known", the 72h ranked window emptied out, and
++# the digest silently "looked quiet" for 74.5h. Silent staleness is the failure mode.
++STALE_AFTER_MINUTES = 25
++
++
++def collect_health(last_collect: str | None, now: datetime | None = None) -> dict:
++    """Verdict on whether collection is still running, from the corpus's last-collect
++    timestamp (`Store.health()['last_collect']`). The engine owns this comparison so it
++    is testable here and every surface (digest, status, extension badge) renders one
++    verdict instead of re-deriving its own.
++
++    Unknown health is reported as unhealthy: a missing/unparseable timestamp means we
++    cannot show collection is alive, and the whole point of this check is that silent
++    degradation must not read as calm. `now` is injectable so tests are deterministic.
++    """
++    now = now or datetime.now(timezone.utc)
++    stamp = None
++    if last_collect:
++        try:
++            stamp = datetime.fromisoformat(last_collect)
++        except (TypeError, ValueError):
++            stamp = None
++    if stamp is None:
++        return {"last_collect": last_collect, "age_minutes": None,
++                "stale": True, "reason": "unknown"}
++    # A naive stamp would raise on the subtraction below; the corpus writes tz-aware
++    # UTC, so treat a naive value as UTC rather than crashing the whole digest.
++    if stamp.tzinfo is None:
++        stamp = stamp.replace(tzinfo=timezone.utc)
++    age = (now - stamp).total_seconds() / 60
++    stale = age > STALE_AFTER_MINUTES
++    return {"last_collect": last_collect, "age_minutes": age,
++            "stale": stale, "reason": "stale" if stale else "fresh"}
++
++
++def _fmt_age(mins: float) -> str:
++    return f"{mins:.0f} min" if mins < 120 else f"{mins / 60:.1f} h"
++
++
++def _stale_banner(health: dict | None) -> str | None:
++    """The staleness warning line, or None when collection is healthy."""
++    if not health or not health.get("stale"):
++        return None
++    age = health.get("age_minutes")
++    when = (
++        f"last successful collect was {_fmt_age(age)} ago"
++        if age is not None
++        else "the last successful collect is unknown"
++    )
++    return (
++        f"> 🚨 **Collection may have stopped** — {when} (threshold: "
++        f"{STALE_AFTER_MINUTES} min). The items below are a frozen snapshot, not a "
++        "quiet news day. Check the collector before trusting this digest."
++    )
++
+ 
+ def _clean(text: str) -> str:
+     """Collapse whitespace/newlines so summaries read as tidy prose."""
+@@ -105,7 +163,7 @@ def _unjudged(items: list[Item]) -> int:
+     )
+ 
+ 
+-def render_markdown(items: list[Item], subtitle: str = "") -> str:
++def render_markdown(items: list[Item], subtitle: str = "", health: dict | None = None) -> str:
+     now = datetime.now(_DISPLAY_TZ).strftime("%Y-%m-%d %H:%M %Z")
+     lines = [
+         f"# AI early-signal digest — {now}",
+@@ -116,6 +174,13 @@ def render_markdown(items: list[Item], subtitle: str = "") -> str:
+         lines.append(f"*{subtitle}*")
+     lines.append("")
+ 
++    # Before the empty-items return, deliberately: an emptied ranking window IS the
++    # outage symptom (2026-07-05), so "no items" is exactly when this must be said.
++    banner = _stale_banner(health)
++    if banner:
++        lines.append(banner)
++        lines.append("")
++
+     if not items:
+         lines.append("_No items matched. Try a wider `--since` window or run a collect._")
+         return "\n".join(lines)
+@@ -278,11 +343,11 @@ def render_html(items: list[Item], subtitle: str = "") -> str:
+     return "\n".join(out)
+ 
+ 
+-def write(items: list[Item], digest_dir: Path) -> tuple[Path, Path]:
++def write(items: list[Item], digest_dir: Path, health: dict | None = None) -> tuple[Path, Path]:
+     stamp = datetime.now(_DISPLAY_TZ).strftime("%Y%m%d-%H%M%S")
+     md_path = digest_dir / f"digest-{stamp}.md"
+     json_path = digest_dir / f"digest-{stamp}.json"
+-    md = render_markdown(items)
++    md = render_markdown(items, health=health)
+     md_path.write_text(md, encoding="utf-8")
+     json_path.write_text(
+         json.dumps([it.to_dict() for it in items], indent=2, default=str),
+diff --git a/extension/src/extension.ts b/extension/src/extension.ts
+index 4964732..20813c4 100644
+--- a/extension/src/extension.ts
++++ b/extension/src/extension.ts
+@@ -49,9 +49,93 @@ function cfg() {
+ 
+ function idleStatus() {
+   statusItem.text = "$(radar) AI Signal";
++  statusItem.backgroundColor = undefined; // clear any stale warning; not an alarm yet
+   statusItem.tooltip = "Click to refresh & open the latest AI signal digest";
+ }
+ 
++/**
++ * The engine's collect-staleness verdict (`health` in `top --json`). The comparison
++ * lives in the engine so it is pytest-covered and every surface renders one verdict;
++ * the extension only paints it.
++ */
++type Health = { stale?: boolean; reason?: string; age_minutes?: number | null };
++
++/**
++ * Unknown health counts as stale. A verdict we can't read (unreachable Jetson,
++ * unparseable output, or an engine too old to send `health`) is exactly the state the
++ * 2026-07-05 outage sat in for 74.5h — a quiet badge there is the bug, not the fix.
++ */
++function isStale(health: Health | undefined): boolean {
++  return !health || health.stale !== false;
++}
++
++function staleLabel(health: Health | undefined): string {
++  if (health?.reason === "stale" && typeof health.age_minutes === "number") {
++    const m = health.age_minutes;
++    return m < 120 ? `last collect ${m.toFixed(0)} min ago` : `last collect ${(m / 60).toFixed(1)} h ago`;
++  }
++  return "last collect unknown — collector unreachable?";
++}
++
++/** Paint the badge as a warning. Pair every call with a digest banner: the badge alone
++ * is half the warning, and the digest is what actually gets read. */
++function staleStatus(health: Health | undefined, suffix = "") {
++  statusItem.text = `$(warning) AI Signal — stale`;
++  statusItem.backgroundColor = new vscode.ThemeColor("statusBarItem.warningBackground");
++  const md = new vscode.MarkdownString(
++    `**AI Signal — collection may have stopped**\n\n${mdEscape(staleLabel(health))}${suffix}`
++  );
++  md.isTrusted = false;
++  statusItem.tooltip = md;
++}
++
++// Must match engine/digest.py's _stale_banner headline verbatim — it doubles as the
++// "already bannered" marker, so drift here would double-banner the digest. Pinned from
++// the engine side by test_collect_health.py::test_extension_banner_marker_matches_engine.
++const STALE_MARKER = "Collection may have stopped";
++
++/** Why the digest is untrustworthy, in the banner's voice. */
++function staleWhy(health: Health | undefined): string {
++  if (health?.reason === "stale" && typeof health.age_minutes === "number") {
++    const m = health.age_minutes;
++    const ago = m < 120 ? `${m.toFixed(0)} min` : `${(m / 60).toFixed(1)} h`;
++    return `last successful collect was ${ago} ago`;
++  }
++  return "the last successful collect is unknown — the collector did not answer";
++}
++
++/**
++ * Prepend the staleness banner to a digest the engine did not banner itself. The engine
++ * banners whenever it *has* a verdict; this covers the cases it cannot speak to — an
++ * unreachable collector, unreadable output, or an engine too old to send `health` at
++ * all. Idempotent via STALE_MARKER, so a run of failed refreshes can't stack banners.
++ */
++function withStaleBanner(md: string, health: Health | undefined): string {
++  if (md.includes(STALE_MARKER)) return md; // the engine already said it
++  return (
++    `> 🚨 **${STALE_MARKER}** — ${staleWhy(health)} (threshold: 25 min). The items below ` +
++    `are a frozen snapshot, not a quiet news day. Check the collector before trusting ` +
++    `this digest.\n\n${md}`
++  );
++}
++
++/**
++ * Banner the *cached* digest on a failed fetch. Without this the badge warns while the
++ * open preview still reads as a normal digest — which is the 2026-07-05 split exactly:
++ * the digest looked like a quiet news day for 74.5h. Warn on the surface being read.
++ */
++function bannerCachedDigest(health: Health | undefined) {
++  const file = path.join(os.tmpdir(), "ai-signal-latest.md");
++  try {
++    if (!fs.existsSync(file)) return; // no cached digest = nothing misleading on screen
++    const md = fs.readFileSync(file, "utf-8");
++    const bannered = withStaleBanner(md, health);
++    if (bannered !== md) writeDigest(file, bannered);
++  } catch (err) {
++    output.appendLine(`could not banner the cached digest: ${err}`);
++  }
++}
++
+ function sshTarget(): string | undefined {
+   const host = cfg().get<string>("sshHost") || "192.168.55.1";
+   const user = cfg().get<string>("sshUser");
+@@ -141,7 +225,11 @@ async function showTop(query?: string, openPreview = true) {
+ 
+   const { stdout, code } = await runRemote(args, "AI Signal: ranking…");
+   if (code !== 0) {
+-    idleStatus();
++    // An unreachable collector is unknown health, not idle: going quiet here is what
++    // let the ICS outage hide for 74.5h. Badge stays a warning until a fetch succeeds,
++    // and the cached digest gets the same warning — the badge alone is half of it.
++    staleStatus(undefined, "\n\nThe last fetch failed — the digest below may be frozen.");
++    bannerCachedDigest(undefined);
+     if (openPreview)
+       vscode.window.showErrorMessage(`AI Signal: failed (exit ${code}). See the "AI Signal" output.`);
+     return;
+@@ -149,14 +237,20 @@ async function showTop(query?: string, openPreview = true) {
+   try {
+     const result = JSON.parse(stdout);
+     const items = result.items ?? [];
+-    updateStatus(items, query);
++    updateStatus(items, query, result.health);
+     // Always refresh the on-disk digest so an already-open preview live-updates,
+     // even on silent (timer / post-collect) refreshes. Previously the file was only
+     // rewritten when openPreview was true, so background refreshes left the preview
+     // stale. Only steal focus / open the preview when explicitly asked.
+     const file = path.join(os.tmpdir(), "ai-signal-latest.md");
+     if (result.digest_markdown) {
+-      writeDigest(file, result.digest_markdown);
++      // withStaleBanner is a no-op when the engine already bannered (it knows it's
++      // stale) or when health is fresh; it only fills the gap left by an engine too
++      // old to send a verdict — whose silence must not read as "fresh".
++      const md = isStale(result.health)
++        ? withStaleBanner(result.digest_markdown, result.health)
++        : result.digest_markdown;
++      writeDigest(file, md);
+     }
+     // Feed the local web view (scripts/serve.py): persist the full ranked result so
+     // the server renders fresh HTML on its next auto-refresh. Written on every
+@@ -167,16 +261,25 @@ async function showTop(query?: string, openPreview = true) {
+       vscode.commands.executeCommand("markdown.showPreview", vscode.Uri.file(file));
+     }
+   } catch {
+-    idleStatus();
++    // Unparseable output = no verdict = unknown health. Same reasoning as the exit-code
++    // path above: never let an unverified digest wear a healthy badge, and warn on the
++    // cached digest too since it is the surface that actually gets read.
++    staleStatus(undefined, "\n\nThe last fetch was unreadable — the digest below may be frozen.");
++    bannerCachedDigest(undefined);
+     output.appendLine("top: remote output was not valid JSON — digest not refreshed.");
+     if (openPreview) vscode.window.showErrorMessage("AI Signal: couldn't parse remote output.");
+   }
+ }
+ 
+ /** Glanceable status bar: count + top headline in the tooltip. */
+-function updateStatus(items: any[], query?: string) {
++function updateStatus(items: any[], query?: string, health?: Health) {
++  if (isStale(health)) {
++    staleStatus(health, `\n\nShowing ${items.length} item(s) from the last good collect.`);
++    return;
++  }
+   const n = items.length;
+   statusItem.text = n ? `$(radar) AI Signal $(arrow-up) ${n}` : "$(radar) AI Signal";
++  statusItem.backgroundColor = undefined; // collection is healthy — drop any warning
+   const md = new vscode.MarkdownString(
+     `**AI Signal** — top ${n}${query ? ` · _${mdEscape(query)}_` : ""}\n\n` +
+       items
+@@ -203,9 +306,11 @@ async function collectNow() {
+   if (busy) return;
+   const { stdout, code } = await runRemote("collect", "AI Signal: collecting on the Jetson…");
+   if (code !== 0) {
+-    // A failed collect must never look like success — without this toast the badge
+-    // just returns to idle and the next digest is silently stale.
+-    idleStatus();
++    // A failed collect must never look like success. idleStatus() would actively erase
++    // an established stale warning and leave the badge neutral until the next refresh —
++    // a failed collect is evidence *for* staleness, so warn instead of clearing.
++    staleStatus(undefined, "\n\nThe last collect failed — the digest below may be frozen.");
++    bannerCachedDigest(undefined);
+     vscode.window.showErrorMessage(`AI Signal: collect failed (exit ${code}). See the "AI Signal" output.`);
+     return;
+   }
+diff --git a/tests/test_collect_health.py b/tests/test_collect_health.py
+new file mode 100644
+index 0000000..fe52d17
+--- /dev/null
++++ b/tests/test_collect_health.py
+@@ -0,0 +1,212 @@
++"""Collect-staleness health check: the digest must say so when collection has stopped.
++
++Regression guard for the 2026-07-05 ICS outage — the desktop's ICS dropped, the Jetson's
++eth0 lost its lease, every source fetch died, and the 72h ranked window emptied out. The
++digest rendered "no items matched" and simply looked like a quiet news day for 74.5h.
++Silent staleness is this system's real failure mode, so these tests pin the two things
++that make it non-silent: the verdict itself, and the banner surviving the empty-digest
++path (where the outage actually shows up).
++"""
++
++import json
++import re
++from datetime import datetime, timedelta, timezone
++from pathlib import Path
++
++from engine import cli
++from engine.digest import STALE_AFTER_MINUTES, _stale_banner, collect_health, render_markdown
++from engine.models import Item
++from engine.store import Store
++
++EXTENSION_SRC = Path(__file__).resolve().parent.parent / "extension" / "src" / "extension.ts"
++
++NOW = datetime(2026, 7, 16, 12, 0, tzinfo=timezone.utc)
++BANNER = "Collection may have stopped"
++
++
++def _ago(**kw) -> str:
++    return (NOW - timedelta(**kw)).isoformat()
++
++
++def _item(**kw) -> Item:
++    it = Item(source=kw.pop("source", "arxiv"), title=kw.pop("title", "t"),
++              url=kw.pop("url", "http://x/1"), raw_domain=kw.pop("raw_domain", ""))
++    for k, v in kw.items():
++        setattr(it, k, v)
++    return it
++
++
++def test_fresh_collect_is_not_stale():
++    h = collect_health(_ago(minutes=5), now=NOW)
++    assert h["stale"] is False
++    assert h["reason"] == "fresh"
++    assert h["age_minutes"] == 5
++
++
++def test_threshold_boundary_is_25_minutes():
++    # The collect cron is */20, so 25 min = one missed cycle + slack. At exactly the
++    # threshold collection is still considered alive; past it, not.
++    assert STALE_AFTER_MINUTES == 25
++    assert collect_health(_ago(minutes=25), now=NOW)["stale"] is False
++    assert collect_health(_ago(minutes=26), now=NOW)["stale"] is True
++
++
++def test_outage_duration_is_stale():
++    h = collect_health(_ago(hours=74.5), now=NOW)
++    assert h["stale"] is True and h["reason"] == "stale"
++
++
++def test_unknown_last_collect_is_treated_as_stale():
++    # Unknown health = unhealthy. A missing stamp cannot prove collection is alive,
++    # and reading "unknown" as calm is exactly the silent degradation being guarded.
++    h = collect_health(None, now=NOW)
++    assert h["stale"] is True
++    assert h["reason"] == "unknown"
++    assert h["age_minutes"] is None
++
++
++def test_unparseable_timestamp_is_stale_and_does_not_raise():
++    for junk in ("", "not-a-date", "2026-13-45T99:99"):
++        h = collect_health(junk, now=NOW)
++        assert h["stale"] is True and h["reason"] == "unknown"
++
++
++def test_naive_timestamp_is_read_as_utc_instead_of_raising():
++    # A naive stamp would blow up the tz-aware subtraction and take the whole digest
++    # down with it; the corpus writes UTC, so assume UTC rather than crash.
++    naive = NOW.replace(tzinfo=None) - timedelta(minutes=5)
++    h = collect_health(naive.isoformat(), now=NOW)
++    assert h["stale"] is False and h["age_minutes"] == 5
++
++
++def test_stale_banner_renders_on_an_empty_digest():
++    # THE outage shape: staleness empties the ranking window, so the banner has to
++    # survive the "no items matched" early return or it misses the real failure.
++    md = render_markdown([], health=collect_health(_ago(hours=74.5), now=NOW))
++    assert BANNER in md
++    assert "74.5 h ago" in md
++    assert "No items matched" in md      # the existing empty-state text is preserved
++
++
++def test_stale_banner_renders_above_the_items():
++    md = render_markdown([_item(score=0.5)], health=collect_health(_ago(hours=3), now=NOW))
++    assert BANNER in md
++    assert md.index(BANNER) < md.index("At a glance")
++
++
++def test_unknown_banner_names_the_unknown_instead_of_a_bogus_age():
++    md = render_markdown([], health=collect_health(None, now=NOW))
++    assert BANNER in md
++    assert "unknown" in md
++
++
++def test_fresh_and_absent_health_render_no_banner():
++    fresh = collect_health(_ago(minutes=5), now=NOW)
++    assert BANNER not in render_markdown([_item(score=0.5)], health=fresh)
++    assert BANNER not in render_markdown([], health=fresh)
++    # health=None -> existing callers keep their current output, unchanged.
++    assert BANNER not in render_markdown([_item(score=0.5)])
++
++
++def test_store_last_collect_feeds_the_verdict(tmp_path):
++    # Wiring: the corpus's own last-collect stamp is what the verdict reads.
++    s = Store(tmp_path / "t.db")
++    s.upsert_item(_item(url="http://x/9", source="hackernews"))
++    s.commit()
++    assert collect_health(s.health()["last_collect"])["stale"] is False
++
++    # Age that stamp past the threshold: the same wiring now reports stale.
++    old = (datetime.now(timezone.utc) - timedelta(hours=74.5)).isoformat()
++    s.conn.execute("UPDATE items SET last_seen = ?", (old,))
++    s.commit()
++    assert collect_health(s.health()["last_collect"])["stale"] is True
++    s.close()
++
++
++def test_empty_corpus_reports_unknown_not_fresh(tmp_path):
++    s = Store(tmp_path / "t.db")
++    assert collect_health(s.health()["last_collect"])["reason"] == "unknown"
++    s.close()
++
++
++# ── Extension contract ──────────────────────────────────────────────────────────
++# The repo has no TypeScript test harness, and adding one is out of scope, so these
++# assert against the extension *source*. They are deliberately narrow: they pin the two
++# invariants a reviewer caught the extension breaking, not its runtime behaviour. A real
++# behavioural test would need a VS Code harness — noted as a limitation, not a claim.
++
++
++def _extension_src() -> str:
++    return EXTENSION_SRC.read_text(encoding="utf-8")
++
++
++def _failure_blocks(src: str) -> list[str]:
++    """The bodies of the extension's genuine fetch/collect failure paths: both
++    `code !== 0` guards, plus showTop's JSON.parse catch (unreadable output = no
++    verdict). Deliberately excludes collectNow's stats-line catch — that one runs on
++    exit 0, meaning the collect itself SUCCEEDED and only its stats line was unreadable,
++    so warning there would be a false alarm rather than a caught outage.
++    """
++    blocks = re.findall(r"if \(code !== 0\) \{(.*?)\n  \}", src, re.S)
++    blocks += [
++        b for b in re.findall(r"\} catch \{(.*?)\n  \}", src, re.S)
++        if "digest not refreshed" in b
++    ]
++    # Strip `//` comments: these assertions are about what the code *calls*, and the
++    # comments here discuss the very calls being asserted against.
++    return [re.sub(r"//[^\n]*", "", b) for b in blocks]
++
++
++def test_extension_banner_marker_matches_the_engine_headline():
++    # The extension prepends this banner only when the engine could not (unreachable
++    # collector, or an engine too old to send `health`), and uses the headline as its
++    # "already bannered" marker. If the engine's wording drifts from the extension's
++    # copy, the guard stops matching and every stale digest gets bannered twice.
++    m = re.search(r'const STALE_MARKER = "([^"]+)"', _extension_src())
++    assert m, "extension must define STALE_MARKER"
++    assert m.group(1) in _stale_banner(collect_health(None, now=NOW))
++    assert m.group(1) in _stale_banner(collect_health(_ago(hours=74.5), now=NOW))
++
++
++def test_extension_failure_paths_never_clear_the_warning():
++    # Regression: collectNow() called idleStatus() on failure, which clears
++    # backgroundColor — actively erasing an established stale warning and leaving the
++    # badge neutral until some later refresh. A failed fetch/collect is evidence FOR
++    # staleness; it must never be the thing that quiets the alarm.
++    blocks = _failure_blocks(_extension_src())
++    assert len(blocks) == 3, f"expected 3 failure paths (top exit, top parse, collect), got {len(blocks)}"
++    for b in blocks:
++        assert "idleStatus()" not in b
++        assert "staleStatus(" in b
++
++
++def test_extension_failure_paths_warn_on_the_digest_too():
++    # Regression: unknown-health paths painted the badge but left the cached digest
++    # unchanged — so the open preview still read as a normal digest. That badge/digest
++    # split IS the 2026-07-05 failure: the digest looked like a quiet news day.
++    for b in _failure_blocks(_extension_src()):
++        assert "bannerCachedDigest(" in b
++
++
++def test_extension_banners_a_digest_from_an_engine_with_no_verdict():
++    # An engine too old to send `health` returns valid output with no banner; writing it
++    # unchanged would let its silence read as "fresh".
++    src = _extension_src()
++    assert re.search(
++        r"isStale\(result\.health\)\s*\?\s*withStaleBanner\(result\.digest_markdown, result\.health\)",
++        src,
++    ), "showTop must banner digest_markdown when health is stale/absent"
++
++
++def test_top_json_carries_the_health_verdict(tmp_path, monkeypatch, capsys):
++    # The extension renders the engine's verdict, so `top --json` must ship it.
++    monkeypatch.setattr(cli, "run_rank", lambda *a, **k: [])
++    monkeypatch.setattr(cli, "attach_summaries", lambda cfg, items, *a, **k: items)
++    monkeypatch.setattr(cli, "_collect_health", lambda cfg: collect_health(None, now=NOW))
++    monkeypatch.setattr(cli.Config, "digest_dir", property(lambda self: tmp_path))
++
++    assert cli.main(["top", "--json"]) == 0
++    payload = json.loads(capsys.readouterr().out)
++    assert payload["health"]["stale"] is True
++    assert payload["health"]["reason"] == "unknown"
++    assert BANNER in payload["digest_markdown"]
