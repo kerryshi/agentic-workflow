@@ -133,6 +133,6 @@ when the picture changes.
 | Attribute Codex work | `harness new-run "..." --agent-id codex --surface codex-desktop` |
 | Capture a lesson | one dated line in `brain\LEARNINGS.md` → `/distill` later |
 | Drive a task through the v2 pipeline | `cd <repo>` → `harness run "<task>"` → read `plan.md` → `harness resume <id> --approve` (global command since 2026-07-11) |
-| …from Windows PowerShell | the npm `harness.ps1` shim is BLOCKED by the Restricted execution policy (bit a session 2026-07-11) — use Git Bash or cmd (`harness.cmd`), or `node harness/dist/cli.js`; the task must be a full sentence (goal + context), never a slash command like `/plan` — skills run inside Claude Code, not the harness |
+| …from Windows PowerShell | WORKS since 2026-07-16 — CurrentUser policy is `RemoteSigned`, verified in a clean `powershell.exe -NoProfile` (`harness status` listed runs); if it ever regresses to Restricted, fall back to Git Bash / `harness.cmd` / `node harness/dist/cli.js`. The task must be a full sentence (goal + context), never a slash command like `/plan` — skills run inside Claude Code, not the harness |
 | Check system health | `npm test` in `harness/` (165 checks) · `harness doctor` · `metrics/summary.md` |
 | Sync the Mac | `git push mac master` per repo · `bash ~/sync-to-mac.sh` |

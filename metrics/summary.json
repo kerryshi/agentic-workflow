@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-07-16T21:23:13-04:00",
-  "runs_started": 26,
-  "runs_shipped": 24,
+  "updated_at": "2026-07-16T22:47:39-04:00",
+  "runs_started": 27,
+  "runs_shipped": 25,
   "failed_runs": 10,
   "failures_total": 24,
   "failures_open": 0,
@@ -10,8 +10,8 @@
   "must_fix_failures": 18,
   "escaped_bugs": 1,
   "regressions_added": 23,
-  "validation_evidence_rate_percent": 84.6,
-  "average_minutes_start_to_ship": 170.7,
+  "validation_evidence_rate_percent": 81.5,
+  "average_minutes_start_to_ship": 164.2,
   "failure_classes": {
     "environment_platform_issue": 8,
     "syntax_type_error": 1,

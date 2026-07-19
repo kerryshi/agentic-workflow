@@ -1,14 +1,14 @@
 # Agentic Workflow Metrics
 
-Last updated: 2026-07-16T21:23:13-04:00
+Last updated: 2026-07-16T22:47:39-04:00
 
 | Metric | Value |
 |---|---:|
-| Runs started | 26 |
-| Runs shipped/complete | 24 |
+| Runs started | 27 |
+| Runs shipped/complete | 25 |
 | Runs with linked failures | 10 |
-| Validation evidence rate | 84.6% |
-| Avg minutes start to ship | 170.7 |
+| Validation evidence rate | 81.5% |
+| Avg minutes start to ship | 164.2 |
 | Failure cases | 24 |
 | Open failures | 0 |
 | Resolved failures | 24 |

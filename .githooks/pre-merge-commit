@@ -28,13 +28,14 @@ if [ ! -d node_modules ]; then
   exit 1
 fi
 
-echo "pre-merge-commit: running the harness suite on $(uname -s) before this merge lands..."
+echo "pre-merge-commit: running the full harness gate (typecheck + tests + build) on $(uname -s) before this merge lands..."
 
 # Capture the status EXPLICITLY rather than leaning on `set -e` + `if ! cmd`. A gate whose
 # pass/fail depends on shell subtleties is a gate that will one day wave everything through,
 # and a guard that never barks is worse than no guard: it manufactures false confidence.
+# `test:all` = typecheck + vitest + build — the suite alone left typecheck/build uncovered.
 set +e
-npm test --silent
+npm run test:all --silent
 rc=$?
 set -e
 

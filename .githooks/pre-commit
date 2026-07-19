@@ -1,0 +1,36 @@
+#!/bin/sh
+#
+# THE MERGE-COMPLETION GUARD.
+#
+# Why this exists: when pre-merge-commit refuses a merge, git leaves the merge staged and
+# prints the bypass in its own output — "use 'git commit' to conclude merge". Plain
+# `git commit` runs pre-commit, NOT pre-merge-commit, so without this hook a refused merge
+# is one command away from landing ungated. Conflicted merges take the same pre-commit-only
+# path, and `git merge --squash` records SQUASH_MSG (never MERGE_HEAD) before its commit.
+# This hook closes all three by re-running the SAME full gate at that moment.
+#
+# Normal (non-merge) commits are deliberately ungated in this repo: this hook exits 0
+# immediately unless a merge is being completed. Rebase and cherry-pick run no merge hooks
+# at all — that side door stays open and is documented in HANDOFF.md.
+#
+# Install (once per clone, on BOTH machines — same two settings as pre-merge-commit):
+#     git config core.hooksPath .githooks
+#     git config merge.ff false
+
+set -e
+
+root=$(git rev-parse --show-toplevel)
+
+# Completing a regular or conflicted merge: MERGE_HEAD exists until the merge commit lands.
+if git rev-parse -q --verify MERGE_HEAD >/dev/null; then
+  echo "pre-commit: a merge is being completed (MERGE_HEAD present) — running the full merge gate."
+  exec "$root/.githooks/pre-merge-commit"
+fi
+
+# Committing a squash merge: git writes SQUASH_MSG instead of MERGE_HEAD.
+if [ -f "$(git rev-parse --git-path SQUASH_MSG)" ]; then
+  echo "pre-commit: a squash merge is being committed (SQUASH_MSG present) — running the full merge gate."
+  exec "$root/.githooks/pre-merge-commit"
+fi
+
+exit 0
