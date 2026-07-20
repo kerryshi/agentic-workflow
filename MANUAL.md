@@ -51,11 +51,9 @@ verifier / classifier / helper / mixed); no agent owns a role. The compounding a
 | `/ship` | Change is "done" — independent review + checks + evidence + change report; wired to the run lifecycle |
 | `/resume` | Re-entering a project — reconstructs state, shows evidence, confirms before acting |
 | `/distill` | Brain inbox has entries (or failure cases unharvested) — turns them into atomic linked notes; promotes ≥3-recurrence lessons to the brief |
-| `/scaffold` | New Python / TS-React / Node project skeleton |
-| `/worktree` | Parallel work that must not collide — isolated git worktree |
-| `/gnhf` | Large evaluable task with a deterministic checker — guarded fresh-context loop |
+| `/scaffold` | New Python / TS-React / Node project skeleton (probation to Aug 15) |
 | `/lavish` | Plan/report/comparison easier reviewed visually — HTML review surface with annotations |
-| `/lab`, `/mac` | WSL2 ML lab check; run something on the MacBook |
+| `/mac` | Run something on the MacBook over the Tailscale SSH alias |
 | `state-survey` (workflow) | Start of a planning session or after time away — parallel readers over config/brain/launchpad/projects |
 
 ## 5. Reliability layer — the run lifecycle
