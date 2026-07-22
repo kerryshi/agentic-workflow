@@ -34,7 +34,8 @@ there is no defect for it to catch.
 ## 2. The real test, where it got worse and simultaneously proved its worth
 
 Run [`2026-07-12_1617`](runs/2026-07-12_1617_add-a-price-faq-intent-to-the-china-garden-call/) — a
-genuine feature on a real project: add a price-lookup intent to a restaurant phone-order agent.
+genuine feature on a real project: add a price-lookup intent to a restaurant phone-order agent
+(my family's restaurant; the system runs end-to-end in text and has not taken a live call yet).
 
 **Cost: $8.23.** Roughly 5× what the task would have cost solo. Of that, **$4.30 was review rounds**
 — four of them.
@@ -44,11 +45,12 @@ And it was worth it.
 The building agent wrote the feature *and* 23 new tests for it. The suite was green — 115 passing.
 The independent review stage caught two defects those tests did not:
 
-**Bug 1 — a price question silently mutated a live order.**
-`RuleBackend.parse` chained `*self._parse_items(text)` after an `item_price` match. So a customer
-asking *"how much are the egg rolls and crab rangoon"* got the price of the egg rolls **and had crab
-rangoon added to their order.** On a real phone line taking real takeout orders. Fixed to return the
-price answer only; two regressions added that fail against the pre-fix code.
+**Bug 1 — a price question silently mutated the in-progress order.**
+`RuleBackend.parse` chained `*self._parse_items(text)` after an `item_price` match. So asking
+*"how much are the egg rolls and crab rangoon"* got the price of the egg rolls **and crab rangoon
+added to the order state.** Caught pre-deployment: the system is built to answer a real phone line,
+and no live call has ever been taken — the reviewer found this while it was a diff. Fixed to return
+the price answer only; two regressions added that fail against the pre-fix code.
 
 **Bug 2 — a pattern-starvation regression** introduced while fixing Bug 1.
 
@@ -60,8 +62,8 @@ Final state: 115 tests green, both bugs pinned by failing-first regressions.
 (Corroborated independently by the downstream commit `e1c098f`, written at the time.)
 
 > This is the whole argument in one run. A green suite told the author they were done. The
-> structurally-independent reviewer told them a customer would be charged for food they never
-> ordered.
+> structurally-independent reviewer showed that the first real customer to ask a price question
+> two ways at once would have been charged for food they never ordered.
 
 ## 3. The run also caught the harness lying about itself
 
@@ -137,8 +139,9 @@ premium by 60%; it did not turn the premium into a profit, and a harness that cl
 would be lying.
 
 Whether that trade is worth it is a function of what a defect costs you. For a throwaway script it
-is obviously not. For code that answers a real phone line and takes real money, an extra dollar to
-find out that price questions silently add items to a customer's order is not a close call.
+is obviously not. For code meant to answer a real phone line and take real money, an extra dollar
+to find out before the first live call that price questions silently add items to an order is not
+a close call.
 
 The most useful thing I built was not the pipeline. It was the **record**: every run, every failure
 case, every regression, every cost — append-only, and honest enough to catch the system in its own
