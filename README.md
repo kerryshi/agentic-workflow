@@ -2,6 +2,11 @@
 
 Kerry's agentic coding workflow repository.
 
+**This is personal infrastructure, published as a working exhibit — not a product.** It exists
+so my own coding agents produce work I can trust; it is public so the run records, failure
+cases, and metrics behind my write-ups can be inspected, not because it is packaged for
+adoption. No releases, no roadmap for external users.
+
 The first running agent behavior lives in `C:\Users\PC\.claude\` (global brief, skills, subagents,
 hooks), but this repo is agent-agnostic by design. It is the durable reliability layer for coding
 agents: run records, failure cases, ship evidence, metrics, adapter contracts, and handoff docs.
