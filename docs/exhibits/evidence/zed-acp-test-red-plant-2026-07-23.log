@@ -1,0 +1,40 @@
+
+> zed-acp-agents@0.1.0 test
+> node --test test/*.test.js
+
+✔ textFromPrompt accepts required ACP text and resource-link content (1.4498ms)
+✔ permissionAllowed only accepts explicit allow options (0.3642ms)
+✔ ACP stdio conformance: approved Code turn streams updates and completes (101.6078ms)
+✔ ACP permission denial stops before executor work (70.5205ms)
+✔ ACP session cancellation returns the required cancelled stop reason (70.27ms)
+✔ reliability core verifies against the Node harness CLI, not retired PS scripts (7.5198ms)
+✖ start/record/complete drive the harness CLI with the run lifecycle subcommands (234.196ms)
+✔ reliability summaries redact common credential forms (1.3202ms)
+✔ redaction covers JSON keys, provider tokens, PEM blocks, and connection strings (0.2575ms)
+✔ a pre-aborted signal short-circuits before the executor spawns (1.136ms)
+✔ a pre-aborted signal short-circuits the fake executor too (0.3526ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 10
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 370.4649
+
+✖ failing tests:
+
+test at test\reliability-cli.test.js:37:1
+✖ start/record/complete drive the harness CLI with the run lifecycle subcommands (234.196ms)
+  AssertionError [ERR_ASSERTION]: new-run must attribute the agent
+      at TestContext.<anonymous> (file:///C:/Users/PC/AppData/Local/Temp/claude/C--Users-PC/e6265fbe-50b7-45a1-8629-93ecb5b23a9b/scratchpad/exh-zed-acp/test/reliability-cli.test.js:58:10)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+EXIT=1

@@ -20,6 +20,7 @@ agents: run records, failure cases, ship evidence, metrics, adapter contracts, a
 - `docs/workflows.md` - how to use the v3 MVP helpers.
 - `docs/ai-coding-workflow.md` - the general plan/build/review/ship loop agents plug into.
 - `docs/permission-policy.md` - auto / approval / blocked policy for coding tasks.
+- `docs/exhibits/` - sibling-project exhibits (CAD print pipeline, Zed ACP agent, governed WebLLM harness), each with watched-red-then-green test evidence.
 - `adapters/adapter-contract.md` - common record shape for Claude Code, Codex, and local agents.
 - `adapters/zed-acp.md` - contract and conformance target for Kerry's separate Zed/ACP experiment.
 - `metrics/summary.md` - generated reliability metrics.

@@ -1,0 +1,29 @@
+ok - extractJson: plain object
+ok - extractJson: junk around object
+ok - extractJson: braces inside strings do not confuse depth
+ok - extractJson: nested objects
+ok - extractJson: skips invalid candidate, finds later valid one
+ok - extractJson: no JSON returns null
+ok - hostMatches: exact and subdomain
+FAIL - policy: unknown tool denied (deny-by-default)
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: The input did not match the regular expression /never-matches-plant/. Input:
+
+'tool "shell_exec" not in policy (deny-by-default)'
+
+    at file:///C:/Users/PC/AppData/Local/Temp/claude/C--Users-PC/e6265fbe-50b7-45a1-8629-93ecb5b23a9b/scratchpad/gh-suite/tests/governance.test.mjs:61:10
+    at t (file:///C:/Users/PC/AppData/Local/Temp/claude/C--Users-PC/e6265fbe-50b7-45a1-8629-93ecb5b23a9b/scratchpad/gh-suite/tests/governance.test.mjs:25:15)
+    at file:///C:/Users/PC/AppData/Local/Temp/claude/C--Users-PC/e6265fbe-50b7-45a1-8629-93ecb5b23a9b/scratchpad/gh-suite/tests/governance.test.mjs:58:7 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: 'tool "shell_exec" not in policy (deny-by-default)',
+  expected: /never-matches-plant/,
+  operator: 'match',
+  diff: 'simple'
+}
+
+Node.js v24.17.0
+EXIT=1

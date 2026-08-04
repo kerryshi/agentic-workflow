@@ -1,0 +1,36 @@
+
+> zed-acp-agents@0.1.0 test:all
+> npm run check && npm test && npm run build
+
+
+> zed-acp-agents@0.1.0 check
+> node --check src/index.js && node --check src/agent.js && node --check src/claude.js && node --check src/jsonrpc.js && node --check src/reliability.js
+
+
+> zed-acp-agents@0.1.0 test
+> node --test test/*.test.js
+
+✔ textFromPrompt accepts required ACP text and resource-link content (1.1035ms)
+✔ permissionAllowed only accepts explicit allow options (0.2453ms)
+✔ ACP stdio conformance: approved Code turn streams updates and completes (107.5931ms)
+✔ ACP permission denial stops before executor work (76.6042ms)
+✔ ACP session cancellation returns the required cancelled stop reason (79.9907ms)
+✔ reliability core verifies against the Node harness CLI, not retired PS scripts (8.3228ms)
+✔ start/record/complete drive the harness CLI with the run lifecycle subcommands (258.3417ms)
+✔ reliability summaries redact common credential forms (2.7979ms)
+✔ redaction covers JSON keys, provider tokens, PEM blocks, and connection strings (0.3818ms)
+✔ a pre-aborted signal short-circuits before the executor spawns (0.953ms)
+✔ a pre-aborted signal short-circuits the fake executor too (0.1979ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 398.0238
+
+> zed-acp-agents@0.1.0 build
+> node scripts/build.js
+
+EXIT=0

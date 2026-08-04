@@ -1,0 +1,5 @@
+
+> zed-acp-agents@0.1.0 test:integration
+> node scripts/run-integration.js
+
+integration OK: 2026-07-23_1923_zed-acp-reliability-integration-smoke-test (status complete, agent zed-acp)

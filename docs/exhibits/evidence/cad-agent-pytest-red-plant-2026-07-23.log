@@ -1,0 +1,19 @@
+.......................................F................................ [ 90%]
+........                                                                 [100%]
+================================== FAILURES ===================================
+_____________________ test_ledctrl_payload_full_envelope ______________________
+
+    def test_ledctrl_payload_full_envelope():
+        p = ledctrl_payload("on")
+        s = p["system"]
+        # every field the firmware requires; absence = silently ignored command
+>       assert s["command"] == "ledctrl-PLANT"
+E       AssertionError: assert 'ledctrl' == 'ledctrl-PLANT'
+E         
+E         - ledctrl-PLANT
+E         + ledctrl
+
+tests\test_printleg.py:18: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_printleg.py::test_ledctrl_payload_full_envelope - Assertion...
+1 failed, 79 passed in 67.70s (0:01:07)

@@ -1,0 +1,36 @@
+ok - extractJson: plain object
+ok - extractJson: junk around object
+ok - extractJson: braces inside strings do not confuse depth
+ok - extractJson: nested objects
+ok - extractJson: skips invalid candidate, finds later valid one
+ok - extractJson: no JSON returns null
+ok - hostMatches: exact and subdomain
+ok - policy: unknown tool denied (deny-by-default)
+ok - policy: disabled tool denied
+ok - policy: malformed proposal denied
+ok - policy: per-tool budget enforced
+ok - policy: global run budget enforced
+ok - policy: clean call on plain tool -> allow
+ok - js_eval: clean code -> review (judge:true in default policy)
+ok - js_eval: blocked pattern denied, pattern named (case-insensitive)
+ok - js_eval: oversize code denied
+ok - js_eval: missing code denied
+ok - fetch_url: allowlisted https domain passes, humanGate flagged
+ok - fetch_url: non-allowlisted domain denied
+ok - fetch_url: http denied when httpsOnly
+ok - fetch_url: unparseable / missing url denied
+ok - memory_set: valid -> review; missing key / oversize value denied
+ok - judge parse: valid verdicts pass through
+ok - judge parse: garbage / out-of-enum fails safe to escalate, never allow
+ok - pipeline: tier-1 deny short-circuits - judge and human never consulted
+ok - pipeline: judge deny blocks a review call
+ok - pipeline: judge escalate routes to human; human allow executes
+ok - pipeline: judge allow on non-gated tool authorizes without human
+ok - pipeline: humanGate survives judge allow (judge cannot clear the gate)
+ok - pipeline: humanGate tool with no review goes straight to human
+ok - validatePolicy: defaults valid; broken shapes rejected
+ok - replay: removing a domain from the allowlist flips the verdict
+ok - replay: budgets simulated sequentially
+
+33 tests passed
+EXIT=0
