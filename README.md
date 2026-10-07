@@ -1,19 +1,43 @@
 # agentic-workflow
 
-Kerry's agentic coding workflow repository.
+[![CI](https://github.com/kerryshi/agentic-workflow/actions/workflows/ci.yml/badge.svg)](https://github.com/kerryshi/agentic-workflow/actions/workflows/ci.yml)
+
+A harness that drives coding agents (Claude Code, Codex) through a staged pipeline — grill, plan,
+build, review, verify — with each stage in a fresh context, a plan-approval gate, and work passed
+only when tests the harness runs itself exit 0. Every run leaves a record: the plan, the review,
+the diff, and the evidence.
+
+The bet is that a reviewer who did not write the code has no stake in it, so it catches what the
+builder's own tests miss. The records are how that bet gets checked rather than assumed: 24 failure
+cases captured, 23 regression tests added, and 1 escaped bug (a change that reached `main` red on
+Windows, CASE-0020), root-caused and closed with a merge gate.
+
+TypeScript on Node, zero runtime dependencies: ~3,900 lines of source, ~3,600 lines of tests, CI on
+Ubuntu and Windows.
+
+## Start here
+
+- [`CASE-STUDY.md`](CASE-STUDY.md) — how the harness went from 4.3× more expensive than no harness
+  to 60% cheaper than its own baseline, and the bug its fresh-context review caught that a green
+  test suite missed.
+- [`docs/write-up-2026-07.md`](docs/write-up-2026-07.md) — the short version.
+- [`harness/src/engine.ts`](harness/src/engine.ts) — the stage pipeline.
+- [`failures/`](failures/) and [`metrics/summary.md`](metrics/summary.md) — every captured failure
+  and the numbers above.
+
+## Scope
 
 **This is personal infrastructure, published as a working exhibit — not a product.** It exists
 so my own coding agents produce work I can trust; it is public so the run records, failure
 cases, and metrics behind my write-ups can be inspected, not because it is packaged for
 adoption. No releases, no roadmap for external users.
 
-The first running agent behavior lives in `C:\Users\PC\.claude\` (global brief, skills, subagents,
-hooks), but this repo is agent-agnostic by design. It is the durable reliability layer for coding
-agents: run records, failure cases, ship evidence, metrics, adapter contracts, and handoff docs.
+It is agent-agnostic by design: the durable reliability layer for coding agents — run records,
+failure cases, ship evidence, metrics, and adapter contracts — that Claude Code, Codex, and local
+models plug into.
 
-## Current Source of Truth
+## Repository map
 
-- `HANDOFF.md` - live state and next actions. A fresh instance should read this first.
 - `MANUAL.md` - user manual: the working loop, skills, run lifecycle, adapters, guardrails.
 - `PRD.md` - Agentic Workflow v3 product decision and scope.
 - `docs/architecture.md` - ownership boundary between the reliability core and execution adapters.
@@ -82,5 +106,3 @@ git config merge.ff false     # so a branch merge always creates a merge commit,
 
 It runs the suite before a merge lands and refuses a red one. `harness doctor` reports when it
 is not installed — a gate you have to remember to invoke is not a gate.
-
-Predecessor archived at `C:\Users\PC\agentos` (see its `RETIRED.md`).
