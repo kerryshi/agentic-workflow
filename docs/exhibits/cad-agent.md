@@ -1,5 +1,9 @@
 # Exhibit — cad-agent: English in, a verified physical part out
 
+> **Update 2026-10-07:** the repo is now public at
+> [github.com/kerryshi/cad-agent](https://github.com/kerryshi/cad-agent). The page below is
+> unchanged from when it was written.
+
 > **Status:** ACTIVE project, frozen read-only for this sprint; this page documents the
 > committed HEAD `897f965` ("Merge review-page", 2026-07-21) and nothing newer — an
 > uncommitted working-tree edit in the main checkout is out of scope. The repo lives at
