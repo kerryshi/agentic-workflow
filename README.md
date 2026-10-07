@@ -24,6 +24,9 @@ Ubuntu and Windows.
 - [`harness/src/engine.ts`](harness/src/engine.ts) — the stage pipeline.
 - [`failures/`](failures/) and [`metrics/summary.md`](metrics/summary.md) — every captured failure
   and the numbers above.
+- Code it was run against: [china-garden-call-agent](https://github.com/kerryshi/china-garden-call-agent)
+  (the restaurant agent in the case study) and [cad-agent](https://github.com/kerryshi/cad-agent)
+  ([exhibit](docs/exhibits/cad-agent.md)).
 
 ## Scope
 
