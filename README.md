@@ -9,10 +9,10 @@ the diff, and the evidence.
 
 The bet is that a reviewer who did not write the code has no stake in it, so it catches what the
 builder's own tests miss. The records are how that bet gets checked rather than assumed: 24 failure
-cases captured, 23 regression tests added, and 1 escaped bug (a change that reached `main` red on
+cases captured, 23 regression tests added, and 1 escaped bug (a change that reached `master` red on
 Windows, CASE-0020), root-caused and closed with a merge gate.
 
-TypeScript on Node, zero runtime dependencies: ~3,900 lines of source, ~3,600 lines of tests, CI on
+TypeScript on Node, zero runtime dependencies: ~4,500 lines of source, ~3,600 lines of tests, CI on
 Ubuntu and Windows.
 
 ## Start here
@@ -46,7 +46,7 @@ models plug into.
 - `docs/permission-policy.md` - auto / approval / blocked policy for coding tasks.
 - `docs/exhibits/` - sibling-project exhibits (CAD print pipeline, Zed ACP agent, governed WebLLM harness), each with watched-red-then-green test evidence.
 - `adapters/adapter-contract.md` - common record shape for Claude Code, Codex, and local agents.
-- `adapters/zed-acp.md` - contract and conformance target for Kerry's separate Zed/ACP experiment.
+- `adapters/zed-acp.md` - contract and conformance target for my separate Zed/ACP experiment.
 - `metrics/summary.md` - generated reliability metrics.
 
 ## Layout
